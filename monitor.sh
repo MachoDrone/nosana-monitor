@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.00.6"
+VERSION="0.00.9"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -56,16 +56,55 @@ echo ""
 
 # Monitor loop
 HEALTH_URL="https://${PUBKEY}.node.k8s.prd.nos.ci/node/info"
+STATUS_URL="https://dashboard.k8s.prd.nos.ci/api/nodes/${PUBKEY}/specs"
 ALERT_SENT=false
 LAST_HEARTBEAT=""
 FIRST_RUN=true
 FAIL_COUNT=0
 DOWN_SINCE=""
+LAST_STATE=""
+LAST_STATUS=""
+STATE_COUNTS_FILE="/tmp/nosana-state-counts"
+
+# Reset state counts
+reset_state_counts() {
+  rm -f "$STATE_COUNTS_FILE"
+  touch "$STATE_COUNTS_FILE"
+}
+
+# Increment a state count
+increment_state() {
+  _state="$1"
+  _current=$(grep "^${_state}=" "$STATE_COUNTS_FILE" 2>/dev/null | cut -d= -f2)
+  _current=${_current:-0}
+  _new=$((_current + 1))
+  if grep -q "^${_state}=" "$STATE_COUNTS_FILE" 2>/dev/null; then
+    sed -i "s/^${_state}=.*/${_state}=${_new}/" "$STATE_COUNTS_FILE"
+  else
+    echo "${_state}=${_new}" >> "$STATE_COUNTS_FILE"
+  fi
+}
+
+# Format state counts as a summary string
+get_state_summary() {
+  sort -t= -k2 -rn "$STATE_COUNTS_FILE" | while IFS='=' read -r _s _c; do
+    printf "%s:%s " "$_s" "$_c"
+  done
+}
+
+reset_state_counts
 
 while true; do
   CURRENT_HOUR=$(date '+%Y-%m-%d %H')
 
-  if curl -sf --max-time 10 "$HEALTH_URL" > /dev/null 2>&1; then
+  HEALTH_RESPONSE=$(curl -sf --max-time 10 "$HEALTH_URL" 2>/dev/null)
+  if [ -n "$HEALTH_RESPONSE" ]; then
+    # Parse state from response
+    CURRENT_STATE=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('state','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+
+    # Track state counts for debugging
+    increment_state "$CURRENT_STATE"
+
     if [ "$ALERT_SENT" = true ]; then
       DOWN_MIN=$(( ($(date +%s) - DOWN_SINCE) / 60 ))
       curl -sf -H "Title: ONLINE: ${FIRST8}" -H "Priority: default" -H "Tags: white_check_mark" \
@@ -74,18 +113,39 @@ while true; do
     fi
     FAIL_COUNT=0
     DOWN_SINCE=""
+
+    # State change detection
+    if [ -n "$LAST_STATE" ] && [ "$CURRENT_STATE" != "$LAST_STATE" ]; then
+      curl -sf -H "Title: State: ${CURRENT_STATE}" -H "Priority: min" -H "Tags: large_blue_circle" \
+        -d "${FIRST8}: ${LAST_STATE} -> ${CURRENT_STATE}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
+      echo "$(date '+%Y-%m-%d %H:%M:%S') STATE - ${LAST_STATE} -> ${CURRENT_STATE}"
+    fi
+    LAST_STATE="$CURRENT_STATE"
+
+    # Status check (tier: PREMIUM/ONBOARDED/COMMUNITY) - check once per poll
+    CURRENT_STATUS=$(curl -sf --max-time 10 "$STATUS_URL" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+    if [ -n "$LAST_STATUS" ] && [ "$CURRENT_STATUS" != "$LAST_STATUS" ]; then
+      curl -sf -H "Title: Status: ${CURRENT_STATUS}" -H "Priority: high" -H "Tags: yellow_circle" \
+        -d "${FIRST8}: ${LAST_STATUS} -> ${CURRENT_STATUS}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
+      echo "$(date '+%Y-%m-%d %H:%M:%S') STATUS - ${LAST_STATUS} -> ${CURRENT_STATUS}"
+    fi
+    LAST_STATUS="$CURRENT_STATUS"
+
     # Startup heartbeat or silent hourly heartbeat (only when healthy)
     if [ "$FIRST_RUN" = true ]; then
-      curl -sf -H "Title: Heartbeat - STARTED" -H "Priority: min" -H "Tags: green_circle" \
-        -d "Node ${FIRST8}... monitor started, node online" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
+      curl -sf -H "Title: Heartbeat - STARTED" -H "Priority: min" -H "Tags: green_heart" \
+        -d "Node ${FIRST8}... monitor started, state: ${CURRENT_STATE}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
       LAST_HEARTBEAT="$CURRENT_HOUR"
       FIRST_RUN=false
     elif [ "$CURRENT_HOUR" != "$LAST_HEARTBEAT" ]; then
-      curl -sf -H "Title: Heartbeat" -H "Priority: min" -H "Tags: green_circle" \
-        -d "Node ${FIRST8}... online" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
+      STATE_SUMMARY=$(get_state_summary)
+      curl -sf -H "Title: Heartbeat" -H "Priority: min" -H "Tags: green_heart" \
+        -d "Node ${FIRST8}... ${STATE_SUMMARY}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
       LAST_HEARTBEAT="$CURRENT_HOUR"
+      echo "$(date '+%Y-%m-%d %H:%M:%S') HEARTBEAT - ${STATE_SUMMARY}"
+      reset_state_counts
     fi
-    echo "$(date '+%Y-%m-%d %H:%M:%S') OK - Node online"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') OK - ${CURRENT_STATE}"
   else
     FAIL_COUNT=$((FAIL_COUNT + 1))
     if [ -z "$DOWN_SINCE" ]; then
