@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.00.9"
+VERSION="0.01.0"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -123,7 +123,16 @@ while true; do
     LAST_STATE="$CURRENT_STATE"
 
     # Status check (tier: PREMIUM/ONBOARDED/COMMUNITY) - check once per poll
-    CURRENT_STATUS=$(curl -sf --max-time 10 "$STATUS_URL" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','UNKNOWN'))" 2>/dev/null || echo "UNKNOWN")
+    STATUS_HTTP=$(curl -s --max-time 10 -o /tmp/status_response -w "%{http_code}" "$STATUS_URL" 2>/dev/null)
+    if [ "$STATUS_HTTP" = "404" ]; then
+      CURRENT_STATUS="NOT_FOUND (404 error)"
+    elif [ "$STATUS_HTTP" = "000" ] || [ -z "$STATUS_HTTP" ]; then
+      CURRENT_STATUS="API REQUEST FAILED"
+    elif [ "$STATUS_HTTP" = "200" ]; then
+      CURRENT_STATUS=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('status','PARSE_ERROR, UNKNOWN'))" 2>/dev/null || echo "PARSE_ERROR, UNKNOWN")
+    else
+      CURRENT_STATUS="API REQUEST FAILED (HTTP ${STATUS_HTTP})"
+    fi
     if [ -n "$LAST_STATUS" ] && [ "$CURRENT_STATUS" != "$LAST_STATUS" ]; then
       curl -sf -H "Title: Status: ${CURRENT_STATUS}" -H "Priority: high" -H "Tags: yellow_circle" \
         -d "${FIRST8}: ${LAST_STATUS} -> ${CURRENT_STATUS}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
