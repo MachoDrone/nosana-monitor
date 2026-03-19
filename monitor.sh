@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.01.0"
+VERSION="0.01.1"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -64,6 +64,9 @@ FAIL_COUNT=0
 DOWN_SINCE=""
 LAST_STATE=""
 LAST_STATUS=""
+STATE_SINCE=""
+STUCK_ALERT_SENT=false
+STUCK_THRESHOLD=600  # 10 minutes in seconds
 STATE_COUNTS_FILE="/tmp/nosana-state-counts"
 
 # Reset state counts
@@ -119,8 +122,22 @@ while true; do
       curl -sf -H "Title: State: ${CURRENT_STATE}" -H "Priority: min" -H "Tags: large_blue_circle" \
         -d "${FIRST8}: ${LAST_STATE} -> ${CURRENT_STATE}" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
       echo "$(date '+%Y-%m-%d %H:%M:%S') STATE - ${LAST_STATE} -> ${CURRENT_STATE}"
+      STATE_SINCE=$(date +%s)
+      STUCK_ALERT_SENT=false
     fi
     LAST_STATE="$CURRENT_STATE"
+
+    # Stuck in RESTARTING detection
+    if [ "$CURRENT_STATE" = "RESTARTING" ] && [ -n "$STATE_SINCE" ] && [ "$STUCK_ALERT_SENT" = false ]; then
+      STATE_DURATION=$(( $(date +%s) - STATE_SINCE ))
+      if [ "$STATE_DURATION" -ge "$STUCK_THRESHOLD" ]; then
+        STATE_MIN=$(( STATE_DURATION / 60 ))
+        curl -sf -H "Title: STUCK: ${FIRST8}" -H "Priority: urgent" -H "Tags: rotating_light" \
+          -d "RESTARTING for over ${STATE_MIN} min — check SOL balance, NOS stake, or node logs" "ntfy.sh/${NTFY_TOPIC}" > /dev/null 2>&1
+        echo "$(date '+%Y-%m-%d %H:%M:%S') STUCK - RESTARTING for ${STATE_MIN} min"
+        STUCK_ALERT_SENT=true
+      fi
+    fi
 
     # Status check (tier: PREMIUM/ONBOARDED/COMMUNITY) - check once per poll
     STATUS_HTTP=$(curl -s --max-time 10 -o /tmp/status_response -w "%{http_code}" "$STATUS_URL" 2>/dev/null)
