@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.01.8"
+VERSION="0.01.9"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -16,6 +16,9 @@ MATRIX_PASS=""
 MATRIX_BOT_USER=""
 MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
+DASHBOARD_URL=""
+HOST_NAME=""
+DASHBOARD_INTERVAL=600  # 10 minutes in seconds
 
 # Parse flags
 while [ $# -gt 0 ]; do
@@ -31,6 +34,8 @@ while [ $# -gt 0 ]; do
     --matrix-pass) MATRIX_PASS="$2"; shift 2 ;;
     --matrix-bot-user) MATRIX_BOT_USER="$2"; shift 2 ;;
     --matrix-bot-pass) MATRIX_BOT_PASS="$2"; shift 2 ;;
+    --dashboard-url) DASHBOARD_URL="$2"; shift 2 ;;
+    --host-name) HOST_NAME="$2"; shift 2 ;;
     --version) echo "nosana-monitor v${VERSION}"; exit 0 ;;
     *) shift ;;
   esac
@@ -194,6 +199,20 @@ send_notify() {
   fi
 }
 
+# Dashboard push: send host status to Cloudflare Worker
+# Usage: dashboard_push "n_status" "queue_pos"
+#   n_status: 1=node up, 0=node down
+#   queue_pos: queue position string or "-"
+dashboard_push() {
+  if [ -z "$DASHBOARD_URL" ]; then return; fi
+  _n="$1"
+  _q="$2"
+  _host="${HOST_NAME:-$(hostname)}"
+  curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\"}" >/dev/null 2>&1 || true
+}
+
 # Startup message
 echo "============================================"
 echo "  Nosana Monitor v${VERSION}"
@@ -202,6 +221,11 @@ echo "  Node:  ${PUBKEY}"
 echo "  Topic: ${NTFY_TOPIC}"
 if [ -n "$MATRIX_ROOM" ]; then
   echo "  Matrix: ${MATRIX_ROOM}"
+fi
+if [ -n "$DASHBOARD_URL" ]; then
+  echo "  Dashboard: ${DASHBOARD_URL}"
+  echo "  Host name: ${HOST_NAME:-$(hostname)}"
+  echo "  Dashboard push: ${DASHBOARD_INTERVAL}s"
 fi
 echo "  Health poll: ${POLL_INTERVAL}s"
 echo "  Status poll: ${STATUS_INTERVAL}s"
@@ -222,6 +246,8 @@ LAST_HEARTBEAT=""
 FIRST_RUN=true
 FAIL_COUNT=0
 DOWN_SINCE=""
+LAST_DASHBOARD_PUSH=0
+LAST_DASHBOARD_STATE=""
 LAST_STATE=""
 LAST_STATUS=""
 STATE_SINCE=""
@@ -359,5 +385,26 @@ while true; do
     fi
     echo "$(date '+%Y-%m-%d %H:%M:%S') WARN - Node unreachable (${FAIL_COUNT}/${FAIL_THRESHOLD})"
   fi
+
+  # Dashboard push: immediate on state change, otherwise every DASHBOARD_INTERVAL
+  if [ -n "$DASHBOARD_URL" ]; then
+    if [ -n "$HEALTH_RESPONSE" ]; then
+      _dash_n=1
+      _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('queue','-'))" 2>/dev/null || echo "-")
+    else
+      _dash_n=0
+      _dash_q="-"
+    fi
+    _dash_state="${_dash_n}:${_dash_q}"
+    if [ "$_dash_state" != "$LAST_DASHBOARD_STATE" ]; then
+      dashboard_push "$_dash_n" "$_dash_q"
+      LAST_DASHBOARD_PUSH=$NOW
+      LAST_DASHBOARD_STATE="$_dash_state"
+    elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
+      dashboard_push "$_dash_n" "$_dash_q"
+      LAST_DASHBOARD_PUSH=$NOW
+    fi
+  fi
+
   sleep "$POLL_INTERVAL"
 done
