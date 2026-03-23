@@ -1,5 +1,29 @@
 # Changelog — Nosana Monitor
 
+## v0.01.9 — 2026-03-23
+### Added
+- Cloudflare Worker dashboard (`cloudflare-worker/`) with Web Push notifications
+- Three alert levels: critical (🚨), warning (⚠️), info (✅) with distinct vibration patterns
+- In-page Web Audio tones for desktop: alarm, double beep, soft chime
+- PWA support: web app manifest, install prompt, home screen icon
+- VAPID key generation script (`generate-vapid-keys.sh`)
+- Service Worker for background push notifications
+- Cron trigger (1 min) for stale host detection
+- Two dashboard toggle buttons: Push Alerts, Page Sound
+- Platform-specific setup hints (iOS PWA, Brave push settings)
+- Sortable vertical column headers
+- Color-blind friendly indicators: 🟢 up, ❌ down, ❓ stale
+
+### Changed
+- Stale threshold: 5 min → 30 min (designed for 10-min heartbeat, 3 missed = offline)
+- Removed Machine and Container columns (redundant with Node check)
+- Dashboard columns: Host, Node, Queue, Seen
+
+### Design decisions
+- 10-min heartbeat + immediate push on state change
+- 200 hosts @ 10-min = 28,800 requests/day (well under Cloudflare free 100k)
+- Alert client is 100% browser-based — no apps or packages on host
+
 ## v0.01.8 — 2026-03-20
 ### Changed
 - Health endpoint polling: 60s → 5s (catches 24-sec RESTARTING and short-lived states)

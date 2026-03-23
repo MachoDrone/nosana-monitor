@@ -1,11 +1,18 @@
 # TODO — Nosana Monitor
 
 ## Next Up
-- [ ] **nosana-dashboard**: New project — lightweight web dashboard with green/red grid per host
-  - Two lights per host: PC alive (system cron heartbeat) + nosana-node healthy (monitor heartbeat)
-  - Hosts push status to central API, HTML page renders grid
-  - Must work in any browser (iOS, Android, Windows, Mac, Linux)
-  - Separate project in `nosana-dashboard/` directory
+- [ ] **Bootstrap script**: Automate Cloudflare Worker setup for new operators
+  - Creates KV namespaces (FLEET_DATA + PUSH_SUBS)
+  - Deploys worker code
+  - Generates and sets VAPID keys as secrets
+  - Generates random dashboard token
+  - Prints ready-to-use dashboard URL
+  - Input: operator's Cloudflare API token
+- [ ] **Monitor integration**: Add dashboard push to monitor.sh
+  - Push host status to Cloudflare Worker via curl
+  - 10-minute heartbeat interval, immediate push on state change
+  - New env var: DASHBOARD_URL
+  - Stale threshold: 30 minutes (3 missed heartbeats = offline)
 - [ ] Message retry queue: on 429 rate limit, queue failed messages and retry in order
   - Applies to both ntfy and Matrix sends
   - Queue must preserve message order per destination
@@ -32,3 +39,4 @@
 - [x] v0.01.6 — Dual Matrix tokens: sysop (silent) + bot (alert with push notifications)
 - [x] v0.01.7 — Auto-login via `--matrix-user`/`--matrix-bot-user` + auto-invite + auto-join
 - [x] v0.01.8 — Split polling: health 5s / dashboard 30min, OFFLINE threshold 36 failures, node info in heartbeats
+- [x] v0.01.9 — Cloudflare Worker dashboard with Web Push notifications, 3 alert levels, in-page audio, PWA support
