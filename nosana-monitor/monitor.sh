@@ -385,11 +385,41 @@ while true; do
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
 
-      # Queue position: find our node in any market's queue on-chain
-      # MarketAccount layout: queue Vec<Pubkey> starts at offset 147
-      _q_info=$(curl -sf --max-time 30 -X POST "$SOLANA_RPC" \
-        -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
+      # Queue position: check known market first, then scan all if not found
+      # MarketAccount layout: queue Vec<Pubkey> at offset 147 (4-byte len + N*32 pubkeys)
+      _q_info="0 0 "
+      if [ -n "$MARKET_ADDRESS" ]; then
+        # Step 1: check the known market (single account, fast)
+        _q_info=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${MARKET_ADDRESS}\",{\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
+import sys,json,base64,struct
+try:
+  ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  def to_b58(pk):
+    n=int.from_bytes(pk,'big');o=[]
+    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
+    for x in pk:
+      if x==0:o.append(b'1')
+      else:break
+    return b''.join(reversed(o)).decode()
+  target='${PUBKEY}'
+  r=json.load(sys.stdin)['result']['value']
+  data=base64.b64decode(r['data'][0])
+  vl=struct.unpack_from('<I',data,147)[0]
+  for i in range(min(vl,314)):
+    if to_b58(data[151+i*32:151+(i+1)*32])==target:
+      print(f'{i+1} {vl} ${MARKET_ADDRESS}');sys.exit(0)
+  print('0 0 ')
+except:
+  print('0 0 ')
+" 2>/dev/null || echo "0 0 ")
+      fi
+      # Step 2: if not found in known market, scan all markets
+      if [ "$(echo "$_q_info" | cut -d' ' -f1)" = "0" ]; then
+        _q_info=$(curl -sf --max-time 30 -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 try:
   ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -407,13 +437,13 @@ try:
     vl=struct.unpack_from('<I',data,147)[0]
     if vl<1 or vl>314:continue
     for i in range(vl):
-      pk=data[151+i*32:151+(i+1)*32]
-      if to_b58(pk)==target:
+      if to_b58(data[151+i*32:151+(i+1)*32])==target:
         print(f'{i+1} {vl} {acct[\"pubkey\"]}');sys.exit(0)
   print('0 0 ')
 except:
   print('0 0 ')
 " 2>/dev/null || echo "0 0 ")
+      fi
       QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
       QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
       _found_market=$(echo "$_q_info" | cut -d' ' -f3)
