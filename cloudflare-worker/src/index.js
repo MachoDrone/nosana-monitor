@@ -421,9 +421,24 @@ async function handleDashboardGet(token, env) {
     <div class="btn-row">
       <button id="pushBtn">Enable Push</button>
       <button id="soundBtn">Enable Sound</button>
+      <button id="fastBtn" class="on">Fast Mode</button>
+      <select id="fastTimeout" style="background:#222;color:#15803d;border:1px solid #15803d;border-radius:6px;padding:6px 8px;font-size:12px">
+        <option value="10">10 min</option>
+        <option value="15" selected>15 min</option>
+        <option value="20">20 min</option>
+        <option value="30">30 min</option>
+      </select>
+      <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888" title="Info">\u{24D8}</span>
       <button id="installBtn" class="on" style="display:none">Install App</button>
     </div>
+    <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
+    <div id="fastHint" style="display:none" class="hint">
+      <b>Kiosk mode</b> (default): refreshes every ${totalHosts <= 10 ? '30s' : totalHosts <= 100 ? '60s' : '120s'} \u{2014} safe for always-on displays.<br>
+      <b>Fast mode</b>: refreshes every 30s for quick monitoring, then reverts to kiosk.<br>
+      Both modes pause when the tab is in the background to save API calls.<br>
+      Each refresh counts toward a daily limit of 100K (free tier).
+    </div>
     <div id="installHint" style="display:none" class="hint">
       <b>Install App</b> adds a desktop/home screen shortcut that opens in its own window.<br>
       \u{2705} Chrome, Edge (Windows, macOS, Linux, Android)<br>
@@ -876,24 +891,114 @@ async function handleDashboardGet(token, env) {
         if (complete >= total) replayPulse();
       });
 
-      // Refresh button with rate limit awareness
+      // Kiosk/Fast mode auto-refresh with visibility awareness
+      const kioskInterval = ${totalHosts <= 10 ? 30 : totalHosts <= 100 ? 60 : 120};
+      const fastInterval = 30;
+      let isFast = false;
+      let fastExpiry = 0;
+      let refreshTimer = null;
+
+      const fastBtn = document.getElementById('fastBtn');
+      const fastTimeout = document.getElementById('fastTimeout');
+      const fastStatus = document.getElementById('fastStatus');
+      const fastInfo = document.getElementById('fastInfo');
+      const fastHint = document.getElementById('fastHint');
       const refreshBtn = document.getElementById('refreshBtn');
-      if (refreshBtn) refreshBtn.addEventListener('click', () => {
-        const age = Math.round((Date.now() - loadTime) / 1000);
-        const msg = age < 60
-          ? 'Data is ' + age + 's old.\\n\\nEach refresh counts against your daily rate limit (100K free). Refresh anyway?'
-          : 'Data is ' + Math.floor(age/60) + 'm old.\\n\\nRefresh?';
-        if (confirm(msg)) location.reload();
+      const gatherFill = document.getElementById('gatherFill');
+
+      // Restore fast mode if active from before refresh
+      const savedFast = localStorage.getItem('nosana-fast-expiry');
+      if (savedFast && Number(savedFast) > Date.now()) {
+        isFast = true;
+        fastExpiry = Number(savedFast);
+        fastBtn.textContent = 'Kiosk Mode';
+        fastBtn.classList.remove('on');
+      }
+
+      function currentInterval() { return isFast ? fastInterval : kioskInterval; }
+
+      function updateStatus() {
+        if (isFast) {
+          const left = Math.max(0, Math.round((fastExpiry - Date.now()) / 60000));
+          fastStatus.textContent = 'Fast mode: ' + left + 'm remaining \u{2022} refresh ' + fastInterval + 's';
+          fastStatus.style.display = '';
+          if (Date.now() >= fastExpiry) {
+            isFast = false;
+            fastExpiry = 0;
+            localStorage.removeItem('nosana-fast-expiry');
+            fastBtn.textContent = 'Fast Mode';
+            fastBtn.classList.add('on');
+            fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's';
+            scheduleRefresh();
+          }
+        } else {
+          fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's';
+          fastStatus.style.display = '';
+        }
+      }
+
+      function scheduleRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        const intv = currentInterval();
+        let elapsed = 0;
+        refreshTimer = setInterval(() => {
+          if (document.hidden) return; // pause when not visible
+          elapsed++;
+          // Animate progress bar as countdown
+          if (gatherFill && complete >= total) {
+            const pct = Math.max(0, 100 - Math.round((elapsed / intv) * 100));
+            gatherFill.style.width = pct + '%';
+            gatherFill.style.transition = 'width 1s linear';
+          }
+          updateStatus();
+          if (elapsed >= intv) {
+            location.reload();
+          }
+        }, 1000);
+      }
+
+      fastBtn.addEventListener('click', () => {
+        if (isFast) {
+          // Switch to kiosk
+          isFast = false;
+          fastExpiry = 0;
+          localStorage.removeItem('nosana-fast-expiry');
+          fastBtn.textContent = 'Fast Mode';
+          fastBtn.classList.add('on');
+        } else {
+          // Switch to fast
+          const mins = Number(fastTimeout.value) || 15;
+          isFast = true;
+          fastExpiry = Date.now() + mins * 60000;
+          localStorage.setItem('nosana-fast-expiry', String(fastExpiry));
+          fastBtn.textContent = 'Kiosk Mode';
+          fastBtn.classList.remove('on');
+        }
+        updateStatus();
+        scheduleRefresh();
       });
 
-      // Intercept F5 / Ctrl+R
+      if (fastInfo) fastInfo.addEventListener('click', () => {
+        fastHint.style.display = fastHint.style.display === 'none' ? '' : 'none';
+      });
+
+      // Manual refresh button
+      if (refreshBtn) refreshBtn.addEventListener('click', () => {
+        location.reload();
+      });
+
+      // Intercept F5 / Ctrl+R — just reload (auto-refresh handles pacing)
       window.addEventListener('keydown', (e) => {
         if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
-          if (e.shiftKey) return; // allow hard refresh
+          if (e.shiftKey) return;
           e.preventDefault();
-          refreshBtn.click();
+          location.reload();
         }
       });
+
+      // Start auto-refresh
+      updateStatus();
+      scheduleRefresh();
     })();
   </script>
 </body>
