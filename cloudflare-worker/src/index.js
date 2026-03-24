@@ -383,7 +383,7 @@ async function handleDashboardGet(token, env) {
     <div style="height:4px;position:relative">
       ${completeHosts < totalHosts
         ? '<div id="gatherFill" data-gathering="1" style="width:' + Math.round((completeHosts / totalHosts) * 100) + '%;height:100%;background:#4ade80;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'
-        : '<div id="gatherFill" data-gathering="0" style="width:0%;height:100%;background:#001300;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'}
+        : '<div id="gatherFill" data-gathering="0" style="width:0%;height:100%;background:#001500;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'}
     </div>
     ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
