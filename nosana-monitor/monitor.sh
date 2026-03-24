@@ -591,3 +591,4 @@ print(b''.join(reversed(o)).decode())
 
   sleep "$POLL_INTERVAL"
 done
+# v0.02.0
