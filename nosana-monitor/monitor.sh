@@ -263,7 +263,8 @@ STATE_SINCE=""
 STUCK_ALERT_SENT=false
 STUCK_THRESHOLD=600  # 10 minutes in seconds
 STATE_COUNTS_FILE="/tmp/nosana-state-counts"
-LAST_STATUS_CHECK=0
+# Offset first specs check by stagger * 30s to spread RPC load across fleet
+LAST_STATUS_CHECK=$(( $(date +%s) - STATUS_INTERVAL + STAGGER * 30 ))
 LAST_NODE_INFO=""
 MARKET_SLUG=""
 MARKET_ADDRESS=""
