@@ -1,0 +1,19 @@
+name: Build Monitor
+
+on:
+  push:
+    paths:
+      - 'nosana-monitor/**'
+    branches:
+      - 'feature/**'
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        working-directory: nosana-monitor
+        run: docker build -t nosana-monitor:${{ github.sha }} .
