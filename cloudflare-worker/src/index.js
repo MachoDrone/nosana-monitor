@@ -922,12 +922,19 @@ async function handleDashboardGet(token, env) {
           if (document.hidden) return;
           elapsed++;
           if (gatherFill && gatherFill.dataset.gathering === '0') {
-            const pct = Math.round((elapsed / intv) * 100);
+            // Alternate: even cycles grow, odd cycles shrink
+            const cycle = Number(localStorage.getItem('nosana-bar-cycle') || '0');
+            const growing = cycle % 2 === 0;
+            const pct = growing
+              ? Math.round((elapsed / intv) * 100)
+              : Math.max(0, 100 - Math.round((elapsed / intv) * 100));
             gatherFill.style.width = pct + '%';
             gatherFill.style.transition = 'width 1s linear';
           }
           updateStatus();
           if (elapsed >= intv) {
+            const c = Number(localStorage.getItem('nosana-bar-cycle') || '0');
+            localStorage.setItem('nosana-bar-cycle', String(c + 1));
             location.reload();
           }
         }, 1000);
