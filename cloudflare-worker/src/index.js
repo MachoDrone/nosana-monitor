@@ -319,8 +319,8 @@ async function handleDashboardGet(token, env) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overscroll-behavior-y:contain}
-    @keyframes barPulse{0%{opacity:1}70%{opacity:1}100%{opacity:0.15}}
-    .bar-complete #gatherFill{animation:barPulse 2.5s ease-out forwards}
+    @keyframes barGrow{0%{width:0%}100%{width:100%}}
+    @keyframes barShrink{0%{width:100%}100%{width:0%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
@@ -868,6 +868,20 @@ async function handleDashboardGet(token, env) {
       const complete = ${completeHosts};
       const total = ${totalHosts};
 
+      // Dark bar: smooth CSS animation, alternates grow/shrink each cycle
+      const gatherFill = document.getElementById('gatherFill');
+      function startBarAnimation() {
+        if (!gatherFill || gatherFill.dataset.gathering === '1') return;
+        const cycle = Number(localStorage.getItem('nosana-bar-cycle') || '0');
+        const intv = currentInterval();
+        const growing = cycle % 2 === 0;
+        gatherFill.style.animation = 'none';
+        gatherFill.style.width = growing ? '0%' : '100%';
+        void gatherFill.offsetWidth;
+        gatherFill.style.animation = (growing ? 'barGrow' : 'barShrink') + ' ' + intv + 's linear forwards';
+      }
+      startBarAnimation();
+
       // Kiosk/Fast mode auto-refresh with visibility awareness
       const kioskInterval = 120;
       const fastInterval = ${totalHosts <= 10 ? 10 : totalHosts <= 50 ? 15 : totalHosts <= 150 ? 20 : totalHosts <= 250 ? 30 : 45};
@@ -879,7 +893,6 @@ async function handleDashboardGet(token, env) {
       const fastStatus = document.getElementById('fastStatus');
       const fastInfo = document.getElementById('fastInfo');
       const refreshBtn = document.getElementById('refreshBtn');
-      const gatherFill = document.getElementById('gatherFill');
 
       // Restore mode from localStorage
       const savedFast = localStorage.getItem('nosana-fast-expiry');
@@ -921,12 +934,10 @@ async function handleDashboardGet(token, env) {
         refreshTimer = setInterval(() => {
           if (document.hidden) return;
           elapsed++;
-          if (gatherFill && gatherFill.dataset.gathering === '0') {
-            const pct = Math.min(100, Math.round((elapsed / intv) * 100));
-            gatherFill.style.width = pct + '%';
-          }
           updateStatus();
           if (elapsed >= intv) {
+            const c = Number(localStorage.getItem('nosana-bar-cycle') || '0');
+            localStorage.setItem('nosana-bar-cycle', String(c + 1));
             location.reload();
           }
         }, 1000);
@@ -948,6 +959,8 @@ async function handleDashboardGet(token, env) {
         }
         updateStatus();
         scheduleRefresh();
+        localStorage.setItem('nosana-bar-cycle', '0');
+        startBarAnimation();
       });
 
       if (fastInfo) fastInfo.addEventListener('click', () => {
