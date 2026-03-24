@@ -319,6 +319,8 @@ async function handleDashboardGet(token, env) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overscroll-behavior-y:contain}
+    #gatherFill.breathe{background:#001700}
+    @media(max-width:600px){#gatherFill.breathe{background:#001200}}
     @keyframes barBreathe{0%{width:0%}50%{width:100%}100%{width:0%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
@@ -383,7 +385,7 @@ async function handleDashboardGet(token, env) {
     <div style="height:4px;position:relative">
       ${completeHosts < totalHosts
         ? '<div id="gatherFill" data-gathering="1" style="width:' + Math.round((completeHosts / totalHosts) * 100) + '%;height:100%;background:#4ade80;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'
-        : '<div id="gatherFill" data-gathering="0" style="width:0%;height:100%;background:#001700;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'}
+        : '<div id="gatherFill" class="breathe" data-gathering="0" style="width:0%;height:100%;border-radius:4px;position:absolute;left:50%;transform:translateX(-50%)"></div>'}
     </div>
     ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
