@@ -234,6 +234,11 @@ echo "    Web:     ntfy.sh/${NTFY_TOPIC}"
 echo "============================================"
 echo ""
 
+# Stagger startup to avoid RPC rate limits across fleet
+STAGGER=$(( $(echo "$PUBKEY" | cksum | cut -d' ' -f1) % 20 ))
+echo "  Stagger delay: ${STAGGER}s"
+sleep "$STAGGER"
+
 # Monitor loop
 HEALTH_URL="https://${PUBKEY}.node.k8s.prd.nos.ci/node/info"
 STATUS_URL="https://dashboard.k8s.prd.nos.ci/api/nodes/${PUBKEY}/specs"
