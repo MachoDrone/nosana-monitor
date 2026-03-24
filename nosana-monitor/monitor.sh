@@ -420,34 +420,31 @@ except:
   print('0 0 ')
 " 2>/dev/null || echo "0 0 ")
       fi
-      # Step 2: if not found in known market, scan all markets
+      # Step 2: if not found, use memcmp to search queue positions 0-19
+      # Each call is tiny (just checks if pubkey exists at a specific offset)
       if [ "$(echo "$_q_info" | cut -d' ' -f1)" = "0" ]; then
-        _q_info=$(curl -sf --max-time 30 -X POST "$SOLANA_RPC" \
-          -H "Content-Type: application/json" \
-          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
+        _pos=0
+        while [ "$_pos" -lt 20 ]; do
+          _off=$((151 + _pos * 32))
+          _match=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
+            -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224},{\"memcmp\":{\"offset\":${_off},\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":4}}]}" 2>/dev/null || echo "")
+          _found=$(echo "$_match" | python3 -c "
 import sys,json,base64,struct
 try:
-  ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  def to_b58(pk):
-    n=int.from_bytes(pk,'big');o=[]
-    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
-    for x in pk:
-      if x==0:o.append(b'1')
-      else:break
-    return b''.join(reversed(o)).decode()
-  target='${PUBKEY}'
-  for acct in json.load(sys.stdin).get('result',[]):
-    data=base64.b64decode(acct['account']['data'][0])
-    if len(data)<151:continue
-    vl=struct.unpack_from('<I',data,147)[0]
-    if vl<1 or vl>314:continue
-    for i in range(vl):
-      if to_b58(data[151+i*32:151+(i+1)*32])==target:
-        print(f'{i+1} {vl} {acct[\"pubkey\"]}');sys.exit(0)
-  print('0 0 ')
-except:
-  print('0 0 ')
-" 2>/dev/null || echo "0 0 ")
+  r=json.load(sys.stdin).get('result',[])
+  if r:
+    vl=struct.unpack_from('<I',base64.b64decode(r[0]['account']['data'][0]),0)[0]
+    print(f'$((_pos + 1)) {vl} {r[0][\"pubkey\"]}')
+  else:print('')
+except:print('')
+" 2>/dev/null)
+          if [ -n "$_found" ]; then
+            _q_info="$_found"
+            break
+          fi
+          _pos=$((_pos + 1))
+        done
       fi
       QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
       QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
