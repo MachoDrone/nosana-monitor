@@ -368,7 +368,10 @@ async function handleDashboardGet(token, env) {
 <body>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <h1>Nosana Fleet <span style="font-size:13px;color:#15803d;font-weight:400">— ${hosts.length}</span></h1>
-    <span id="purgeBtn" style="cursor:pointer;font-size:16px" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
+    <span style="font-size:14px">
+      <span id="refreshBtn" style="cursor:pointer" title="Refresh dashboard">\u{1F504}</span>
+      <span id="purgeBtn" style="cursor:pointer;margin-left:8px" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
+    </span>
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${
@@ -833,8 +836,36 @@ async function handleDashboardGet(token, env) {
       document.getElementById('installHint').style.display = 'none';
     });
 
-    /* ---- Auto-refresh ---- */
-    setTimeout(() => location.reload(), 60000);
+    /* ---- Cache + controlled refresh ---- */
+    (function() {
+      const cacheKey = 'nosana-fleet-cache-' + TOKEN;
+      const loadTime = Date.now();
+
+      // Save current page to localStorage
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: loadTime }));
+
+      // Disable pull-to-refresh on mobile
+      document.body.style.overscrollBehavior = 'none';
+
+      // Refresh button with rate limit awareness
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.addEventListener('click', () => {
+        const age = Math.round((Date.now() - loadTime) / 1000);
+        const msg = age < 60
+          ? 'Data is ' + age + 's old.\\n\\nEach refresh counts against your daily rate limit (100K free). Refresh anyway?'
+          : 'Data is ' + Math.floor(age/60) + 'm old.\\n\\nRefresh?';
+        if (confirm(msg)) location.reload();
+      });
+
+      // Intercept F5 / Ctrl+R
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+          if (e.shiftKey) return; // allow hard refresh
+          e.preventDefault();
+          refreshBtn.click();
+        }
+      });
+    })();
   </script>
 </body>
 </html>`;

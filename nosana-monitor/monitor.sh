@@ -18,7 +18,7 @@ MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
 DASHBOARD_URL=""
 HOST_NAME=""
-DASHBOARD_INTERVAL=600  # 10 minutes in seconds
+DASHBOARD_INTERVAL=300  # 5 minutes — push-on-change handles immediate updates
 
 # Parse flags
 while [ $# -gt 0 ]; do
@@ -235,7 +235,10 @@ echo "============================================"
 echo ""
 
 # Stagger startup to avoid RPC rate limits across fleet
-STAGGER=$(( $(echo "$PUBKEY" | cksum | cut -d' ' -f1) % 20 ))
+# Unique jitter from pubkey hash — prevents fleet hosts from colliding
+_hash=$(printf '%s' "$PUBKEY" | md5sum | cut -c1-8)
+_hash_dec=$(printf '%d' "0x${_hash}")
+STAGGER=$(( _hash_dec % 30 ))
 echo "  Stagger delay: ${STAGGER}s"
 sleep "$STAGGER"
 
@@ -264,7 +267,8 @@ STUCK_ALERT_SENT=false
 STUCK_THRESHOLD=600  # 10 minutes in seconds
 STATE_COUNTS_FILE="/tmp/nosana-state-counts"
 # Offset first specs check by stagger * 30s to spread RPC load across fleet
-LAST_STATUS_CHECK=$(( $(date +%s) - STATUS_INTERVAL + STAGGER * 30 ))
+# Spread first specs check across STATUS_INTERVAL using hash
+LAST_STATUS_CHECK=$(( $(date +%s) - STATUS_INTERVAL + (_hash_dec % STATUS_INTERVAL) ))
 LAST_NODE_INFO=""
 MARKET_SLUG=""
 MARKET_ADDRESS=""
