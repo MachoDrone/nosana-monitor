@@ -359,7 +359,7 @@ async function handleDashboardGet(token, env) {
 </head>
 <body>
   <div style="display:flex;justify-content:space-between;align-items:center">
-    <h1>Nosana Fleet <span style="font-size:13px;color:#888;font-weight:400">— ${hosts.length}</span></h1>
+    <h1>Nosana Fleet <span style="font-size:13px;color:#15803d;font-weight:400">— ${hosts.length}</span></h1>
     <span id="purgeBtn" style="cursor:pointer;font-size:16px" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
@@ -398,9 +398,15 @@ async function handleDashboardGet(token, env) {
     <div class="btn-row">
       <button id="pushBtn">Enable Push</button>
       <button id="soundBtn">Enable Sound</button>
-      <button id="installBtn" style="display:none">Install App</button>
+      <button id="installBtn" class="on" style="display:none">Install App</button>
     </div>
     <div class="status-msg" id="statusMsg"></div>
+    <div id="installHint" style="display:none" class="hint">
+      <b>Install App</b> adds a desktop/home screen shortcut that opens in its own window.<br>
+      \u{2705} Chrome, Edge (Windows, macOS, Linux, Android)<br>
+      \u{26A0}\u{FE0F} iOS Safari: use Share \u{2192} "Add to Home Screen" instead<br>
+      \u{274C} Firefox, Brave, Safari macOS: not supported
+    </div>
   </div>
 
   <script>
@@ -802,6 +808,7 @@ async function handleDashboardGet(token, env) {
       e.preventDefault();
       deferredPrompt = e;
       installBtn.style.display = '';
+      document.getElementById('installHint').style.display = '';
     });
     installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) return;
@@ -809,11 +816,13 @@ async function handleDashboardGet(token, env) {
       const result = await deferredPrompt.userChoice;
       if (result.outcome === 'accepted') {
         installBtn.style.display = 'none';
+        document.getElementById('installHint').style.display = 'none';
       }
       deferredPrompt = null;
     });
     window.addEventListener('appinstalled', () => {
       installBtn.style.display = 'none';
+      document.getElementById('installHint').style.display = 'none';
     });
 
     /* ---- Auto-refresh ---- */

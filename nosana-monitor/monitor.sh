@@ -384,6 +384,49 @@ while true; do
       fi
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
+
+      # Queue position: read market account from Solana RPC
+      if [ -n "$MARKET_ADDRESS" ]; then
+        _q_data=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${MARKET_ADDRESS}\",{\"encoding\":\"base64\"}]}" 2>/dev/null || echo "")
+        if [ -n "$_q_data" ]; then
+          _q_info=$(echo "$_q_data" | python3 -c "
+import sys,json,base64,struct
+try:
+  r=json.load(sys.stdin)['result']['value']
+  data=base64.b64decode(r['data'][0])
+  ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  def to_b58(pk):
+    n=int.from_bytes(pk,'big');o=[]
+    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
+    for x in pk:
+      if x==0:o.append(b'1')
+      else:break
+    return b''.join(reversed(o)).decode()
+  # Scan for Vec<Pubkey> containing our node
+  target='${PUBKEY}'
+  best_pos=0;best_total=0
+  off=0
+  while off<len(data)-4:
+    vl=struct.unpack_from('<I',data,off)[0]
+    if 1<=vl<=500 and off+4+vl*32<=len(data):
+      for i in range(vl):
+        pk=data[off+4+i*32:off+4+(i+1)*32]
+        if to_b58(pk)==target:
+          best_pos=i+1;best_total=vl;break
+      if best_pos>0:break
+      off+=4+vl*32
+    else:
+      off+=1
+  print(f'{best_pos} {best_total}')
+except:
+  print('0 0')
+" 2>/dev/null || echo "0 0")
+          QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
+          QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
+        fi
+      fi
     fi
 
     # Startup heartbeat or hourly heartbeat with node info
@@ -418,7 +461,12 @@ while true; do
   if [ -n "$DASHBOARD_URL" ]; then
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
-      _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('queue','-'))" 2>/dev/null || echo "-")
+      # Queue display: use on-chain position if available, else node/info
+      if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
+        _dash_q="${QUEUE_POS}"
+      else
+        _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
+      fi
       # Derive display state from Solana RPC (source of truth)
       # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
       if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
@@ -512,11 +560,11 @@ print(b''.join(reversed(o)).decode())
     fi
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
       LAST_DASHBOARD_PUSH=$NOW
       LAST_DASHBOARD_STATE="$_dash_combined"
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
       LAST_DASHBOARD_PUSH=$NOW
     fi
   fi
