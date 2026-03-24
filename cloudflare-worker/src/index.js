@@ -290,8 +290,8 @@ async function handleDashboardGet(token, env) {
         <td>${tierIndicator(h.tier)}</td>
         <td>${indicator(h.n, h.seen)}</td>
         <td>${stateIndicator(h.state)}</td>
-        <td class="dur">${jobDuration(h)}</td>
-        <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : '-'}</td>
+        <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
+        <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenAgo(h.seen)}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
