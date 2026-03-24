@@ -390,8 +390,47 @@ while true; do
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
 
-      # Queue position is now handled by the Cloudflare Worker cron
-      # (avoids Solana RPC rate limits from operator's IP)
+      # Queue position: get market list from API, check each via getAccountInfo
+      _mkt_list=$(curl -sf --max-time 10 "https://dashboard.k8s.prd.nos.ci/api/markets/" 2>/dev/null | python3 -c "import sys,json; [print(m['address']) for m in json.load(sys.stdin)]" 2>/dev/null || echo "")
+      QUEUE_POS=0; QUEUE_TOTAL=0
+      if [ -n "$_mkt_list" ]; then
+        for _mkt in $_mkt_list; do
+          _q_result=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
+            -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_mkt}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":10052}}]}" 2>/dev/null | python3 -c "
+import sys,json,base64,struct
+try:
+  ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  def to_b58(pk):
+    n=int.from_bytes(pk,'big');o=[]
+    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
+    for x in pk:
+      if x==0:o.append(b'1')
+      else:break
+    return b''.join(reversed(o)).decode()
+  r=json.load(sys.stdin)['result']['value']
+  data=base64.b64decode(r['data'][0])
+  vl=struct.unpack_from('<I',data,0)[0]
+  if vl<1 or vl>314:sys.exit(0)
+  target='${PUBKEY}'
+  for i in range(vl):
+    if to_b58(data[4+i*32:4+(i+1)*32])==target:
+      print(f'{i+1} {vl}');sys.exit(0)
+except:pass
+" 2>/dev/null)
+          if [ -n "$_q_result" ]; then
+            QUEUE_POS=$(echo "$_q_result" | cut -d' ' -f1)
+            QUEUE_TOTAL=$(echo "$_q_result" | cut -d' ' -f2)
+            if [ "$_mkt" != "$MARKET_ADDRESS" ]; then
+              MARKET_ADDRESS="$_mkt"
+              LAST_MARKET_FETCH=0
+              echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET-CHANGE - ${_mkt}"
+            fi
+            echo "$(date '+%Y-%m-%d %H:%M:%S') QUEUE - ${QUEUE_POS}/${QUEUE_TOTAL}"
+            break
+          fi
+        done
+      fi
     fi
 
     # Startup heartbeat or hourly heartbeat with node info
@@ -426,7 +465,11 @@ while true; do
   if [ -n "$DASHBOARD_URL" ]; then
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
-      _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
+      if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
+        _dash_q="${QUEUE_POS}"
+      else
+        _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
+      fi
       # Derive display state from Solana RPC (source of truth)
       # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
       if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
@@ -520,11 +563,11 @@ print(b''.join(reversed(o)).decode())
     fi
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
       LAST_DASHBOARD_PUSH=$NOW
       LAST_DASHBOARD_STATE="$_dash_combined"
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
       LAST_DASHBOARD_PUSH=$NOW
     fi
   fi
