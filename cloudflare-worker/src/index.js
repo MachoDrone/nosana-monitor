@@ -316,6 +316,7 @@ async function handleDashboardGet(token, env) {
   <title>Nosana Fleet</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
+    html,body{overscroll-behavior-y:contain}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
@@ -843,9 +844,6 @@ async function handleDashboardGet(token, env) {
 
       // Save current page to localStorage
       localStorage.setItem(cacheKey, JSON.stringify({ ts: loadTime }));
-
-      // Disable pull-to-refresh on mobile
-      document.body.style.overscrollBehavior = 'none';
 
       // Refresh button with rate limit awareness
       const refreshBtn = document.getElementById('refreshBtn');

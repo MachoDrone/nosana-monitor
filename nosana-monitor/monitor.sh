@@ -254,7 +254,8 @@ LAST_DASHBOARD_STATE=""
 LAST_DASH_STATE=""
 LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
-RUNNING_SINCE=0
+RUNNING_STATE_FILE="/state/running-since"
+RUNNING_SINCE=$(cat "$RUNNING_STATE_FILE" 2>/dev/null || echo "0")
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
@@ -489,6 +490,7 @@ except:pass
         # Track when we first saw RUNNING for duration bar
         if [ "$RUNNING_SINCE" -eq 0 ] 2>/dev/null; then
           RUNNING_SINCE=$NOW
+          echo "$NOW" > "$RUNNING_STATE_FILE" 2>/dev/null || true
         fi
         _dash_jobstart="$RUNNING_SINCE"
         # Get timeout from JobAccount (Borsh layout: timeout at offset 225, 8 bytes LE)
@@ -520,6 +522,7 @@ print(b''.join(reversed(o)).decode())
       elif [ -n "$_run_count" ]; then
         # RPC responded, no RunAccount — not running
         RUNNING_SINCE=0
+        rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
         if [ "${CURRENT_STATE}" = "RESTARTING" ]; then
           _dash_s="RESTARTING"
         else
@@ -548,6 +551,7 @@ print(b''.join(reversed(o)).decode())
         _dash_jobstart="0"
         _dash_jobtimeout="0"
         RUNNING_SINCE=0
+        rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
       fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_dl="${SPECS_AVG_DL:-}"

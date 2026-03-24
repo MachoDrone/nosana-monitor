@@ -43,6 +43,7 @@ while true; do
         --name "$CONTAINER_NAME" \
         --restart unless-stopped \
         -v /home/md/.nosana:/root/.nosana:ro \
+        -v nosana-monitor-state:/state \
         "${IMAGE_NAME}:latest" $CURRENT_ARGS
       echo "$(date '+%Y-%m-%d %H:%M:%S') Monitor updated and restarted"
     else
