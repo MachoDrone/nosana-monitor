@@ -198,6 +198,26 @@ send_notify() {
   fi
 }
 
+# Retry-aware curl for Solana RPC (backs off on 429)
+rpc_curl() {
+  _retries=0
+  while [ "$_retries" -lt 3 ]; do
+    _http=$(curl -s --max-time 10 -o /tmp/rpc_response -w "%{http_code}" "$@" 2>/dev/null) || true
+    if [ "$_http" = "429" ]; then
+      _retries=$((_retries + 1))
+      _wait=$(( _retries * 3 ))
+      echo "$(date '+%Y-%m-%d %H:%M:%S') RPC 429 - backoff ${_wait}s (retry ${_retries}/3)"
+      sleep "$_wait"
+    elif [ "$_http" = "200" ]; then
+      cat /tmp/rpc_response
+      return 0
+    else
+      return 1
+    fi
+  done
+  return 1
+}
+
 # Dashboard push: send host status to Cloudflare Worker
 dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
@@ -399,7 +419,7 @@ while true; do
       QUEUE_POS=0; QUEUE_TOTAL=0
       if [ -n "$_mkt_addrs" ]; then
         _addr_json=$(echo "$_mkt_addrs" | python3 -c "import sys; print('['+','.join('\"'+a+'\"' for a in sys.stdin.read().strip().split(','))+']')")
-        _q_result=$(curl -sf --max-time 15 -X POST "$SOLANA_RPC" \
+        _q_result=$(rpc_curl -X POST "$SOLANA_RPC" \
           -H "Content-Type: application/json" \
           -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getMultipleAccounts\",\"params\":[${_addr_json},{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":10052}}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
@@ -480,7 +500,7 @@ except:pass
       # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
       if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
       LAST_SOLANA_CHECK=$NOW
-      _rpc_resp=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+      _rpc_resp=$(rpc_curl -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
       _run_count=$(echo "$_rpc_resp" | python3 -c "import sys,json; r=json.load(sys.stdin); print(len(r.get('result',[])))" 2>/dev/null || echo "")
@@ -507,7 +527,7 @@ for x in b:
 print(b''.join(reversed(o)).decode())
 " 2>/dev/null || echo "")
           if [ -n "$_job_addr" ]; then
-            _job_acct=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
+            _job_acct=$(rpc_curl -X POST "$SOLANA_RPC" \
               -H "Content-Type: application/json" \
               -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_job_addr}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":225,\"length\":8}}]}" 2>/dev/null || echo "")
             _dash_jobtimeout=$(echo "$_job_acct" | python3 -c "import sys,json,base64,struct; d=base64.b64decode(json.load(sys.stdin)['result']['value']['data'][0]); print(struct.unpack_from('<q',d,0)[0])" 2>/dev/null || echo "0")

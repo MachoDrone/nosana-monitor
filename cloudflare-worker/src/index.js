@@ -216,6 +216,8 @@ async function handleDashboardGet(token, env) {
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
+  const totalHosts = hosts.length;
+  const completeHosts = hosts.filter(([, h]) => h.tier && h.dl && h.ping).length;
 
   const now = Date.now();
 
@@ -375,6 +377,13 @@ async function handleDashboardGet(token, env) {
     </span>
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
+  ${totalHosts > 0 && completeHosts < totalHosts ? `
+  <div id="gatherBar" class="tap" data-label="Gathering data from nodes... ${completeHosts}/${totalHosts}" style="margin-bottom:8px">
+    <div style="background:#222;border-radius:4px;height:6px;overflow:hidden">
+      <div style="width:${Math.round((completeHosts / totalHosts) * 100)}%;height:100%;background:#4ade80;border-radius:4px;transition:width 0.5s"></div>
+    </div>
+    <div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>
+  </div>` : ''}
   ${
     hosts.length === 0
       ? '<div class="empty">No host data yet. Waiting for monitors...</div>'
