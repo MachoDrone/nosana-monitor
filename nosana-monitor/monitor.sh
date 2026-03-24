@@ -539,6 +539,13 @@ print(b''.join(reversed(o)).decode())
         _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
       fi
+      # Override: node/info catches RESTARTING every 5s (faster than 60s RPC check)
+      if [ "${CURRENT_STATE}" = "RESTARTING" ] && [ "$_dash_s" != "RESTARTING" ]; then
+        _dash_s="RESTARTING"
+        _dash_jobstart="0"
+        _dash_jobtimeout="0"
+        RUNNING_SINCE=0
+      fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_dl="${SPECS_AVG_DL:-}"
       _dash_ul="${SPECS_AVG_UL:-}"
