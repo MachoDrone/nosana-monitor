@@ -1,33 +1,34 @@
 # TODO — Nosana Monitor
 
-## Next Up
+## Next Up — Critical
+- [ ] **Exhaustive learn.nosana.com crawl**: Crawl every page for /hosts/ routes, host manager, all 4 API clients
+- [ ] **RUNNING state detection**: /api/jobs gets rate limited. Try Solana RPC (RunAccount) instead — no rate limit
+- [ ] **API call frequency optimization**: Current 10 calls/hr/host hits rate limit at scale
+  - Move /api/jobs check to 30-min with specs, or replace with Solana RPC
+  - Move /api/stats/nodes-country to once/hour or once/day
+  - Rewards check to once/day at 00:15 UTC
+  - Hardware fields (RAM, disk, GPU, CPU) to once/day
+
+## Next Up — Features
 - [ ] **Bootstrap script**: Automate Cloudflare Worker setup for new operators
   - Creates KV namespaces (FLEET_DATA + PUSH_SUBS)
   - Deploys worker code
   - Generates and sets VAPID keys as secrets
   - Generates random dashboard token
-  - Prints ready-to-use dashboard URL
   - Input: operator's Cloudflare API token
-- [ ] **Monitor integration**: Add dashboard push to monitor.sh
-  - Push host status to Cloudflare Worker via curl
-  - 10-minute heartbeat interval, immediate push on state change
-  - New env var: DASHBOARD_URL
-  - Stale threshold: 30 minutes (3 missed heartbeats = offline)
-- [ ] Message retry queue: on 429 rate limit, queue failed messages and retry in order
-  - Applies to both ntfy and Matrix sends
-  - Queue must preserve message order per destination
-  - On 429: read `retry_after_ms` (Matrix) or `Retry-After` (ntfy), sleep, retry once
-  - Drop after second failure (don't block the monitor loop)
-  - If multiple messages queued, combine same-priority messages into one before retry
-  - Never queue/combine critical alerts (OFFLINE, STUCK) — always send immediately
-  - Respect char limits: ntfy 4,096 body / Matrix 65,536 body
-- [ ] Compact single-line messages: keep all alert text on one line where supported
-  - Check ntfy and Matrix/Element rendering behavior
-  - Avoids multi-line clutter in notification shade on mobile
-- [ ] ntfy self-hosting option: document or support self-hosted ntfy for unlimited msgs
-  - ntfy.sh free tier: ~250 msgs/day, burst limits apply
+- [ ] **Dashboard UI fixes**:
+  - Sort arrow at bottom of rotated headers
+  - Placeholder hosts (nn01, nn02) break some column sorts — clean up stale KV data
+  - DL/UL fields: switch to avgDownload10/avgUpload10 from specs (done in code, needs testing)
+  - Ping: switch to avgPing10 from specs (done in code, needs testing)
+- [ ] **Restart monitor on nn03**: No monitors running on any host currently
 - [ ] Security: credentials visible in `docker inspect` args — consider env vars or mounted secrets file
 - [ ] Expand STUCK detection to cover STARTING, HEALTHCHECK, BENCHMARKING (not just RESTARTING)
+
+## Removed (ntfy/Matrix being replaced by Cloudflare Worker)
+- ~~Message retry queue~~
+- ~~Compact single-line messages~~
+- ~~ntfy self-hosting~~
 
 ## Completed
 - [x] v0.01.0 — Initial monitor with health checks, ntfy alerts
