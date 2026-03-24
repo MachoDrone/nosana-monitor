@@ -319,6 +319,8 @@ async function handleDashboardGet(token, env) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overscroll-behavior-y:contain}
+    @keyframes barPulse{0%{opacity:1}70%{opacity:1}100%{opacity:0.15}}
+    .bar-complete #gatherFill{animation:barPulse 2.5s ease-out forwards}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
@@ -377,12 +379,12 @@ async function handleDashboardGet(token, env) {
     </span>
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
-  ${totalHosts > 0 && completeHosts < totalHosts ? `
-  <div id="gatherBar" class="tap" data-label="Gathering data from nodes... ${completeHosts}/${totalHosts}" style="margin-bottom:8px">
-    <div style="background:#222;border-radius:4px;height:6px;overflow:hidden">
-      <div style="width:${Math.round((completeHosts / totalHosts) * 100)}%;height:100%;background:#4ade80;border-radius:4px;transition:width 0.5s"></div>
+  ${totalHosts > 0 ? `
+  <div id="gatherBar" class="tap" data-label="${completeHosts < totalHosts ? 'Gathering data from nodes... ' + completeHosts + '/' + totalHosts : 'All ' + totalHosts + ' nodes reporting'}" style="margin-bottom:8px">
+    <div style="background:#222;border-radius:4px;height:4px;overflow:hidden">
+      <div id="gatherFill" style="width:${Math.round((completeHosts / totalHosts) * 100)}%;height:100%;background:#4ade80;border-radius:4px;transition:width 0.5s"></div>
     </div>
-    <div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>
+    ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
   ${
     hosts.length === 0
@@ -853,6 +855,13 @@ async function handleDashboardGet(token, env) {
 
       // Save current page to localStorage
       localStorage.setItem(cacheKey, JSON.stringify({ ts: loadTime }));
+
+      // Progress bar pulse when all data is complete
+      const complete = ${completeHosts};
+      const total = ${totalHosts};
+      if (complete >= total && total > 0) {
+        document.body.classList.add('bar-complete');
+      }
 
       // Refresh button with rate limit awareness
       const refreshBtn = document.getElementById('refreshBtn');
