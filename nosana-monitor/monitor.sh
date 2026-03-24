@@ -266,9 +266,8 @@ STATE_SINCE=""
 STUCK_ALERT_SENT=false
 STUCK_THRESHOLD=600  # 10 minutes in seconds
 STATE_COUNTS_FILE="/tmp/nosana-state-counts"
-# Offset first specs check by stagger * 30s to spread RPC load across fleet
-# Spread first specs check across STATUS_INTERVAL using hash
-LAST_STATUS_CHECK=$(( $(date +%s) - STATUS_INTERVAL + (_hash_dec % STATUS_INTERVAL) ))
+# First specs check runs right after startup stagger (0-30s spread is enough)
+LAST_STATUS_CHECK=0
 LAST_NODE_INFO=""
 MARKET_SLUG=""
 MARKET_ADDRESS=""
