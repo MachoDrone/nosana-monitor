@@ -56,9 +56,8 @@ fi
 
 # Auto-generate ntfy topic if not set
 FIRST8=$(echo "$PUBKEY" | head -c 8)
-if [ -z "$NTFY_TOPIC" ]; then
-  NTFY_TOPIC="nosana-${FIRST8}"
-fi
+# ntfy only if explicitly set via --ntfy-topic
+# (no auto-generate — operators use Web Push now)
 
 # URL-encode Matrix room ID (! and : need encoding)
 MATRIX_ROOM_ENCODED=$(printf '%s' "$MATRIX_ROOM" | sed 's/!/%21/g; s/:/%3A/g')
@@ -259,7 +258,7 @@ RUNNING_SINCE=0
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
-LAST_SOLANA_CHECK=0
+LAST_SOLANA_CHECK=0  # 0 = run immediately on first loop
 LAST_STATE=""
 LAST_STATUS=""
 STATE_SINCE=""
