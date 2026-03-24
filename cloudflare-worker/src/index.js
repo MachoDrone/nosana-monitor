@@ -869,16 +869,7 @@ async function handleDashboardGet(token, env) {
       const complete = ${completeHosts};
       const total = ${totalHosts};
 
-      // Dark bar: breathes from center (grow then shrink) over refresh interval
       const gatherFill = document.getElementById('gatherFill');
-      function startBarAnimation() {
-        if (!gatherFill || gatherFill.dataset.gathering === '1') return;
-        const intv = currentInterval();
-        gatherFill.style.animation = 'none';
-        void gatherFill.offsetWidth;
-        gatherFill.style.animation = 'barBreathe ' + intv + 's ease-in-out infinite';
-      }
-      startBarAnimation();
 
       // Kiosk/Fast mode auto-refresh with visibility awareness
       const kioskInterval = 120;
@@ -976,9 +967,17 @@ async function handleDashboardGet(token, env) {
         }
       });
 
+      // Start breathing bar animation
+      function startBarAnimation() {
+        if (!gatherFill || gatherFill.dataset.gathering === '1') return;
+        const intv = currentInterval();
+        gatherFill.style.animation = 'barBreathe ' + intv + 's ease-in-out infinite';
+      }
+
       // Start auto-refresh
       updateStatus();
       scheduleRefresh();
+      startBarAnimation();
     })();
   </script>
 </body>
