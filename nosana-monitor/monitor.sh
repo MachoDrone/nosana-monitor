@@ -250,6 +250,8 @@ LAST_DASH_JOBTIMEOUT="0"
 RUNNING_SINCE=0
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
+SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
+LAST_SOLANA_CHECK=0
 LAST_STATE=""
 LAST_STATUS=""
 STATE_SINCE=""
@@ -417,8 +419,10 @@ while true; do
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
       _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('queue','-'))" 2>/dev/null || echo "-")
-      # Derive display state from Solana RPC (source of truth, no rate limits)
-      # Query for RunAccounts where node=PUBKEY — existence means RUNNING
+      # Derive display state from Solana RPC (source of truth)
+      # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
+      if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
+      LAST_SOLANA_CHECK=$NOW
       _rpc_resp=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
@@ -471,6 +475,12 @@ print(b''.join(reversed(o)).decode())
         LAST_DASH_JOBTIMEOUT="0"
       else
         # RPC failed — use cached state
+        _dash_s="${LAST_DASH_STATE:-QUEUED}"
+        _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
+        _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+      fi
+      else
+        # Between RPC checks — use cached state
         _dash_s="${LAST_DASH_STATE:-QUEUED}"
         _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"

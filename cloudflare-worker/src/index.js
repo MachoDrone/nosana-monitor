@@ -358,7 +358,10 @@ async function handleDashboardGet(token, env) {
   </style>
 </head>
 <body>
-  <h1>Nosana Fleet</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h1>Nosana Fleet <span style="font-size:13px;color:#888;font-weight:400">— ${hosts.length}</span></h1>
+    <span id="purgeBtn" style="cursor:pointer;font-size:16px" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
+  </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${
     hosts.length === 0
@@ -373,7 +376,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="state" data-type="string"><div>State</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
-        <th data-col="seen" data-type="num"><div>30min-HB</div></th>
+        <th data-col="seen" data-type="num"><div>Heartbeat</div></th>
         <th data-col="rewards" data-type="num"><div>Rewards</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
         <th data-col="disk" data-type="num"><div>Disk</div></th>
@@ -403,6 +406,35 @@ async function handleDashboardGet(token, env) {
   <script>
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
+
+    /* ---- Purge stale hosts ---- */
+    (function() {
+      const btn = document.getElementById('purgeBtn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const rows = document.querySelectorAll('#fleet tbody tr');
+        const stale = [];
+        rows.forEach(r => {
+          const name = r.dataset.host;
+          const n = r.dataset.n;
+          const state = r.dataset.state;
+          if (!n || n === '0' || !state) stale.push(name);
+        });
+        const msg = stale.length
+          ? 'Remove ' + stale.length + ' offline/stale host(s)?\\n\\n' + stale.join(', ') + '\\n\\nThis removes hosts with no active heartbeat. Active hosts are not affected.'
+          : 'No abandoned hosts to remove. All hosts are reporting.';
+        if (!stale.length) { alert(msg); return; }
+        if (!confirm(msg)) return;
+        try {
+          const res = await fetch('/d/' + TOKEN + '/purge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hosts: stale })
+          });
+          if (res.ok) location.reload();
+        } catch {}
+      });
+    })();
 
     /* ---- Duration toggle ---- */
     (function() {
@@ -938,6 +970,29 @@ async function handleUnsubscribe(token, request, env) {
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
+/*  Route: POST /d/TOKEN/purge — remove stale hosts                  */
+/* ------------------------------------------------------------------ */
+
+async function handlePurge(token, request, env) {
+  let body;
+  try { body = await request.json(); } catch { return jsonResponse({ error: 'Invalid JSON' }, 400); }
+  const { hosts } = body;
+  if (!Array.isArray(hosts) || hosts.length === 0) return jsonResponse({ error: 'No hosts specified' }, 400);
+
+  const raw = await env.FLEET_DATA.get(token);
+  if (!raw) return jsonResponse({ error: 'No data' }, 404);
+  const data = JSON.parse(raw);
+
+  let removed = 0;
+  for (const h of hosts) {
+    if (data[h]) { delete data[h]; removed++; }
+  }
+
+  await env.FLEET_DATA.put(token, JSON.stringify(data));
+  return jsonResponse({ ok: true, removed });
+}
+
+/* ------------------------------------------------------------------ */
 /*  Route: POST /d/TOKEN/refresh-market/HOST — refresh market slug    */
 /* ------------------------------------------------------------------ */
 
@@ -1033,6 +1088,11 @@ async function handleRequest(request, env) {
   // POST /d/TOKEN/unsubscribe
   if (subPath === '/unsubscribe' && method === 'POST') {
     return handleUnsubscribe(token, request, env);
+  }
+
+  // POST /d/TOKEN/purge — remove stale hosts
+  if (subPath === '/purge' && method === 'POST') {
+    return handlePurge(token, request, env);
   }
 
   // POST /d/TOKEN/refresh-market/HOST — manually refresh market slug
