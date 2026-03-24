@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.01.9
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -126,7 +126,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
@@ -158,6 +158,8 @@ async function handleStatusPost(token, request, env) {
     jobTimeout: jobTimeout ?? 0,
     queueTotal: queueTotal ?? '',
     rewards: rewards ?? '',
+    marketSlug: marketSlug || (prev && prev.marketSlug) || '',
+    marketAddress: marketAddress || (prev && prev.marketAddress) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -257,7 +259,7 @@ async function handleDashboardGet(token, env) {
     const pct = Math.min(100, Math.round((elapsed / max) * 100));
     const bar = '<span class="dur-bar"><span class="dur-fill" style="width:' + pct + '%"></span></span>';
     const text = fmtDuration(elapsed) + ' / ' + fmtDuration(max);
-    return '<span class="dur-mode dur-m-bar">' + bar + '</span><span class="dur-mode dur-m-text">' + text + '</span>';
+    return '<span class="dur-mode dur-m-bar">' + tap(text, bar) + '</span><span class="dur-mode dur-m-text">' + text + '</span>';
   }
 
   function seenAgo(ts) {
@@ -278,15 +280,15 @@ async function handleDashboardGet(token, env) {
         <td>${stateIndicator(h.state)}</td>
         <td class="dur">${jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : '-'}</td>
-        <td class="seen">${seenAgo(h.seen)}</td>
-        <td class="rewards">${h.rewards ? Math.round(Number(h.rewards)) : '-'}</td>
-        <td class="ram">${h.ram ? (Number(h.ram) / 1024).toFixed(1) : '-'}</td>
+        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenAgo(h.seen)}</td>
+        <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
+        <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
         <td class="disk">${h.disk || '-'}</td>
         <td class="ver">${h.version || '-'}</td>
         <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
         <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
         <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
-        <td class="gpu"><span class="gpu-mode gpu-m-full">${h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${h.gpu ? '.' : '-'}</span></td>
+        <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu) ? '.' : '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
       </tr>`,
     )
@@ -315,7 +317,7 @@ async function handleDashboardGet(token, env) {
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
     th:not(:first-child){height:80px;position:relative}
-    th:not(:first-child) div{position:absolute;bottom:-6px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
+    th:not(:first-child) div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:first-child div{padding:0}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80}
@@ -323,15 +325,17 @@ async function handleDashboardGet(token, env) {
     td.host{text-align:left;font-weight:600;color:#fff}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
+    td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
+    td.rewards a:hover{text-decoration:underline}
     td.q{font-size:12px;color:#ccc}
     td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur{font-size:11px;color:#888}
     .actions{margin:16px 0}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
-    button{background:#16a34a;color:#fff;border:none;padding:10px 16px;
-           border-radius:6px;font-size:13px;cursor:pointer;flex:1;min-width:120px}
+    button{background:#16a34a;color:#fff;border:none;padding:8px 14px;
+           border-radius:6px;font-size:12px;cursor:pointer}
     button:hover{background:#15803d}
-    button.on{background:#dc2626}
-    button.on:hover{background:#b91c1c}
+    button.on{background:#111;color:#15803d;border:1px solid #15803d}
+    button.on:hover{background:#1a1a1a}
     .status-msg{font-size:12px;color:#888;margin-top:4px}
     .hint{font-size:11px;color:#f59e0b;margin-top:8px;line-height:1.5}
     .hint a{color:#60a5fa}
@@ -377,7 +381,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="dl" data-type="num"><div>DL</div></th>
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
-        <th data-col="gpu" data-type="string"><div>GPU <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
+        <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
       </tr>
     </thead>
@@ -425,6 +429,25 @@ async function handleDashboardGet(token, env) {
         localStorage.setItem('nosana-gpu-mode', cur);
       });
     })();
+
+    /* ---- Market slug click-to-refresh ---- */
+    document.querySelectorAll('td.gpu .gpu-m-full').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const host = el.closest('td').dataset.host;
+        if (!host) return;
+        const ok = confirm('Refresh market slug?\\n\\nAuto-updates daily. Manual refresh uses one API call.');
+        if (!ok) return;
+        el.textContent = '...';
+        try {
+          const res = await fetch('/d/' + TOKEN + '/refresh-market/' + encodeURIComponent(host), { method: 'POST' });
+          const data = await res.json();
+          if (data.slug) { el.textContent = data.slug; }
+          else { el.textContent = 'error'; setTimeout(() => location.reload(), 1500); }
+        } catch { el.textContent = 'error'; setTimeout(() => location.reload(), 1500); }
+      });
+    });
 
     /* ---- Tap tooltips ---- */
     document.addEventListener('click', (e) => {
@@ -506,11 +529,13 @@ async function handleDashboardGet(token, env) {
           const rows = Array.from(tbody.querySelectorAll('tr'));
 
           rows.sort((a, b) => {
-            const cellA = a.children[idx] ? a.children[idx].textContent.trim() : '';
-            const cellB = b.children[idx] ? b.children[idx].textContent.trim() : '';
+            const tdA = a.children[idx];
+            const tdB = b.children[idx];
+            const cellA = tdA ? tdA.textContent.trim() : '';
+            const cellB = tdB ? tdB.textContent.trim() : '';
             if (type === 'num') {
-              const na = parseFloat(cellA) || 0;
-              const nb = parseFloat(cellB) || 0;
+              const na = parseFloat((tdA && tdA.dataset.sort) || cellA) || 0;
+              const nb = parseFloat((tdB && tdB.dataset.sort) || cellB) || 0;
               return (na - nb) * sortDir;
             }
             return cellA.localeCompare(cellB) * sortDir;
@@ -912,6 +937,30 @@ async function handleUnsubscribe(token, request, env) {
 /*  Router                                                            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Route: POST /d/TOKEN/refresh-market/HOST — refresh market slug    */
+/* ------------------------------------------------------------------ */
+
+async function handleRefreshMarket(token, host, env) {
+  const raw = await env.FLEET_DATA.get(token);
+  if (!raw) return jsonResponse({ error: 'No data' }, 404);
+  const data = JSON.parse(raw);
+  const h = data[host];
+  if (!h || !h.marketAddress) return jsonResponse({ error: 'No market address for host' }, 404);
+
+  try {
+    const res = await fetch(`https://dashboard.k8s.prd.nos.ci/api/markets/${h.marketAddress}/`);
+    if (!res.ok) return jsonResponse({ error: 'Market API error' }, 502);
+    const market = await res.json();
+    h.marketSlug = market.slug || h.marketSlug;
+    data[host] = h;
+    await env.FLEET_DATA.put(token, JSON.stringify(data));
+    return jsonResponse({ ok: true, slug: h.marketSlug });
+  } catch {
+    return jsonResponse({ error: 'Failed to fetch market' }, 502);
+  }
+}
+
 async function handleRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -984,6 +1033,12 @@ async function handleRequest(request, env) {
   // POST /d/TOKEN/unsubscribe
   if (subPath === '/unsubscribe' && method === 'POST') {
     return handleUnsubscribe(token, request, env);
+  }
+
+  // POST /d/TOKEN/refresh-market/HOST — manually refresh market slug
+  const marketMatch = subPath.match(/^\/refresh-market\/(.+)$/);
+  if (marketMatch && method === 'POST') {
+    return handleRefreshMarket(token, marketMatch[1], env);
   }
 
   // POST /d/TOKEN — ingest status

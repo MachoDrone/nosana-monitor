@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.01.9"
+VERSION="0.02.0"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -206,7 +206,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\"}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\"}" >/dev/null 2>&1 || true
 }
 
 # Startup message
@@ -247,6 +247,9 @@ LAST_DASHBOARD_STATE=""
 LAST_DASH_STATE=""
 LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
+RUNNING_SINCE=0
+SOLANA_RPC="https://api.mainnet-beta.solana.com"
+NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 LAST_STATE=""
 LAST_STATUS=""
 STATE_SINCE=""
@@ -255,6 +258,10 @@ STUCK_THRESHOLD=600  # 10 minutes in seconds
 STATE_COUNTS_FILE="/tmp/nosana-state-counts"
 LAST_STATUS_CHECK=0
 LAST_NODE_INFO=""
+MARKET_SLUG=""
+MARKET_ADDRESS=""
+LAST_MARKET_FETCH=0
+MARKET_FETCH_INTERVAL=86400  # 24 hours
 
 # Reset state counts
 reset_state_counts() {
@@ -352,6 +359,20 @@ while true; do
         SPECS_REWARDS=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('claimableUptimeNosRewards',''))" 2>/dev/null || echo "")
         SPECS_JOB_ADDR=$(python3 -c "import sys,json; v=json.load(open('/tmp/status_response')).get('jobAddress',''); print(v if v else '')" 2>/dev/null || echo "")
         SPECS_QUEUE_TOTAL=$(curl -sf --max-time 5 "https://dashboard.k8s.prd.nos.ci/api/stats/nodes-country" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(sum(x.get('queue',0) for x in (d.get('data',d) if isinstance(d,dict) else d)))" 2>/dev/null || echo "")
+        # Extract market address from specs
+        _mkt_addr=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('marketAddress',''))" 2>/dev/null || echo "")
+        if [ -n "$_mkt_addr" ]; then
+          MARKET_ADDRESS="$_mkt_addr"
+          # Resolve market slug once per day
+          if [ $(( NOW - LAST_MARKET_FETCH )) -ge "$MARKET_FETCH_INTERVAL" ]; then
+            _slug=$(curl -sf --max-time 5 "https://dashboard.k8s.prd.nos.ci/api/markets/${_mkt_addr}/" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('slug',''))" 2>/dev/null || echo "")
+            if [ -n "$_slug" ]; then
+              MARKET_SLUG="$_slug"
+              LAST_MARKET_FETCH=$NOW
+              echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET - ${_slug}"
+            fi
+          fi
+        fi
       else
         CURRENT_STATUS="API REQUEST FAILED (HTTP ${STATUS_HTTP})"
       fi
@@ -396,19 +417,48 @@ while true; do
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
       _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('queue','-'))" 2>/dev/null || echo "-")
-      # Derive display state from jobs API (most reliable source)
-      # Cache last known state to survive rate limits
-      _job_resp=$(curl -sf --max-time 5 "https://dashboard.k8s.prd.nos.ci/api/jobs?node=${PUBKEY}&limit=1" 2>/dev/null || echo "")
-      _job_state=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0]['state'] if j else '')" 2>/dev/null || echo "")
-      if [ "$_job_state" = "1" ]; then
+      # Derive display state from Solana RPC (source of truth, no rate limits)
+      # Query for RunAccounts where node=PUBKEY — existence means RUNNING
+      _rpc_resp=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
+      _run_count=$(echo "$_rpc_resp" | python3 -c "import sys,json; r=json.load(sys.stdin); print(len(r.get('result',[])))" 2>/dev/null || echo "")
+      if [ "$_run_count" -gt 0 ] 2>/dev/null; then
         _dash_s="RUNNING"
-        _dash_jobstart=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0].get('timeStart',0) if j else 0)" 2>/dev/null || echo "0")
-        _dash_jobtimeout=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0].get('timeout',0) if j else 0)" 2>/dev/null || echo "0")
+        # Track when we first saw RUNNING for duration bar
+        if [ "$RUNNING_SINCE" -eq 0 ] 2>/dev/null; then
+          RUNNING_SINCE=$NOW
+        fi
+        _dash_jobstart="$RUNNING_SINCE"
+        # Get timeout from JobAccount (Borsh layout: timeout at offset 225, 8 bytes LE)
+        if [ "$LAST_DASH_JOBTIMEOUT" = "0" ] || [ -z "$LAST_DASH_JOBTIMEOUT" ]; then
+          _job_addr=$(echo "$_rpc_resp" | python3 -c "
+import sys,json,base64
+r=json.load(sys.stdin)['result'][0]
+b=base64.b64decode(r['account']['data'][0])
+ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+n=int.from_bytes(b,'big');o=[]
+while n>0:n,r=divmod(n,58);o.append(ALPHA[r:r+1])
+for x in b:
+ if x==0:o.append(b'1')
+ else:break
+print(b''.join(reversed(o)).decode())
+" 2>/dev/null || echo "")
+          if [ -n "$_job_addr" ]; then
+            _job_acct=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
+              -H "Content-Type: application/json" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_job_addr}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":225,\"length\":8}}]}" 2>/dev/null || echo "")
+            _dash_jobtimeout=$(echo "$_job_acct" | python3 -c "import sys,json,base64,struct; d=base64.b64decode(json.load(sys.stdin)['result']['value']['data'][0]); print(struct.unpack_from('<q',d,0)[0])" 2>/dev/null || echo "0")
+          fi
+        else
+          _dash_jobtimeout="$LAST_DASH_JOBTIMEOUT"
+        fi
         LAST_DASH_STATE="RUNNING"
         LAST_DASH_JOBSTART="$_dash_jobstart"
-        LAST_DASH_JOBTIMEOUT="$_dash_jobtimeout"
-      elif [ -n "$_job_state" ]; then
-        # Got a valid response but not running
+        LAST_DASH_JOBTIMEOUT="${_dash_jobtimeout:-0}"
+      elif [ -n "$_run_count" ]; then
+        # RPC responded, no RunAccount — not running
+        RUNNING_SINCE=0
         if [ "${CURRENT_STATE}" = "RESTARTING" ]; then
           _dash_s="RESTARTING"
         else
@@ -420,7 +470,7 @@ while true; do
         LAST_DASH_JOBSTART="0"
         LAST_DASH_JOBTIMEOUT="0"
       else
-        # API failed (rate limit etc) — use cached state
+        # RPC failed — use cached state
         _dash_s="${LAST_DASH_STATE:-QUEUED}"
         _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
