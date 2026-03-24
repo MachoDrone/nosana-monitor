@@ -319,8 +319,7 @@ async function handleDashboardGet(token, env) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overscroll-behavior-y:contain}
-    @keyframes barGrow{0%{width:0%}100%{width:100%}}
-    @keyframes barShrink{0%{width:100%}100%{width:0%}}
+    @keyframes barBreathe{0%{width:0%}50%{width:100%}100%{width:0%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
@@ -381,8 +380,10 @@ async function handleDashboardGet(token, env) {
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${totalHosts > 0 ? `
   <div id="gatherBar" class="tap" data-label="${completeHosts < totalHosts ? 'Gathering data from nodes... ' + completeHosts + '/' + totalHosts : 'All ' + totalHosts + ' nodes reporting'}" style="margin-bottom:8px">
-    <div style="background:#222;border-radius:4px;height:4px;overflow:hidden;display:flex;justify-content:center">
-      <div id="gatherFill" data-gathering="${completeHosts < totalHosts ? '1' : '0'}" style="width:${completeHosts < totalHosts ? Math.round((completeHosts / totalHosts) * 100) + '%' : '0%'};height:100%;background:${completeHosts < totalHosts ? '#4ade80' : '#15803d'};border-radius:4px"></div>
+    <div style="height:4px;display:flex;justify-content:center">
+      ${completeHosts < totalHosts
+        ? '<div id="gatherFill" data-gathering="1" style="width:' + Math.round((completeHosts / totalHosts) * 100) + '%;height:100%;background:#4ade80;border-radius:4px"></div>'
+        : '<div id="gatherFill" data-gathering="0" style="width:0%;height:100%;background:#333;border-radius:4px"></div>'}
     </div>
     ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
@@ -868,17 +869,14 @@ async function handleDashboardGet(token, env) {
       const complete = ${completeHosts};
       const total = ${totalHosts};
 
-      // Dark bar: smooth CSS animation, alternates grow/shrink each cycle
+      // Dark bar: breathes from center (grow then shrink) over refresh interval
       const gatherFill = document.getElementById('gatherFill');
       function startBarAnimation() {
         if (!gatherFill || gatherFill.dataset.gathering === '1') return;
-        const cycle = Number(localStorage.getItem('nosana-bar-cycle') || '0');
         const intv = currentInterval();
-        const growing = cycle % 2 === 0;
         gatherFill.style.animation = 'none';
-        gatherFill.style.width = growing ? '0%' : '100%';
         void gatherFill.offsetWidth;
-        gatherFill.style.animation = (growing ? 'barGrow' : 'barShrink') + ' ' + intv + 's linear forwards';
+        gatherFill.style.animation = 'barBreathe ' + intv + 's ease-in-out infinite';
       }
       startBarAnimation();
 
@@ -936,8 +934,6 @@ async function handleDashboardGet(token, env) {
           elapsed++;
           updateStatus();
           if (elapsed >= intv) {
-            const c = Number(localStorage.getItem('nosana-bar-cycle') || '0');
-            localStorage.setItem('nosana-bar-cycle', String(c + 1));
             location.reload();
           }
         }, 1000);
@@ -959,7 +955,6 @@ async function handleDashboardGet(token, env) {
         }
         updateStatus();
         scheduleRefresh();
-        localStorage.setItem('nosana-bar-cycle', '0');
         startBarAnimation();
       });
 
