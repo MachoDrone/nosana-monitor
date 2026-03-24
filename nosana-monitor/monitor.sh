@@ -391,14 +391,14 @@ while true; do
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
 
-      # Queue position: get market list from API, check each via getAccountInfo
-      _mkt_list=$(curl -sf --max-time 10 "https://dashboard.k8s.prd.nos.ci/api/markets/" 2>/dev/null | python3 -c "import sys,json; [print(m['address']) for m in json.load(sys.stdin)]" 2>/dev/null || echo "")
+      # Queue position: get all markets in ONE RPC call via getMultipleAccounts
+      _mkt_addrs=$(curl -sf --max-time 10 "https://dashboard.k8s.prd.nos.ci/api/markets/" 2>/dev/null | python3 -c "import sys,json; print(','.join(m['address'] for m in json.load(sys.stdin)))" 2>/dev/null || echo "")
       QUEUE_POS=0; QUEUE_TOTAL=0
-      if [ -n "$_mkt_list" ]; then
-        for _mkt in $_mkt_list; do
-          _q_result=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
-            -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_mkt}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":10052}}]}" 2>/dev/null | python3 -c "
+      if [ -n "$_mkt_addrs" ]; then
+        _addr_json=$(echo "$_mkt_addrs" | python3 -c "import sys; print('['+','.join('\"'+a+'\"' for a in sys.stdin.read().strip().split(','))+']')")
+        _q_result=$(curl -sf --max-time 15 -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getMultipleAccounts\",\"params\":[${_addr_json},{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":10052}}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 try:
   ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -409,28 +409,30 @@ try:
       if x==0:o.append(b'1')
       else:break
     return b''.join(reversed(o)).decode()
-  r=json.load(sys.stdin)['result']['value']
-  data=base64.b64decode(r['data'][0])
-  vl=struct.unpack_from('<I',data,0)[0]
-  if vl<1 or vl>314:sys.exit(0)
+  addrs='${_mkt_addrs}'.split(',')
   target='${PUBKEY}'
-  for i in range(vl):
-    if to_b58(data[4+i*32:4+(i+1)*32])==target:
-      print(f'{i+1} {vl}');sys.exit(0)
+  accounts=json.load(sys.stdin)['result']['value']
+  for idx,acct in enumerate(accounts):
+    if not acct:continue
+    data=base64.b64decode(acct['data'][0])
+    vl=struct.unpack_from('<I',data,0)[0]
+    if vl<1 or vl>314:continue
+    for i in range(vl):
+      if to_b58(data[4+i*32:4+(i+1)*32])==target:
+        print(f'{i+1} {vl} {addrs[idx]}');sys.exit(0)
 except:pass
 " 2>/dev/null)
-          if [ -n "$_q_result" ]; then
-            QUEUE_POS=$(echo "$_q_result" | cut -d' ' -f1)
-            QUEUE_TOTAL=$(echo "$_q_result" | cut -d' ' -f2)
-            if [ "$_mkt" != "$MARKET_ADDRESS" ]; then
-              MARKET_ADDRESS="$_mkt"
-              LAST_MARKET_FETCH=0
-              echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET-CHANGE - ${_mkt}"
-            fi
-            echo "$(date '+%Y-%m-%d %H:%M:%S') QUEUE - ${QUEUE_POS}/${QUEUE_TOTAL}"
-            break
+        if [ -n "$_q_result" ]; then
+          QUEUE_POS=$(echo "$_q_result" | cut -d' ' -f1)
+          QUEUE_TOTAL=$(echo "$_q_result" | cut -d' ' -f2)
+          _found_mkt=$(echo "$_q_result" | cut -d' ' -f3)
+          if [ -n "$_found_mkt" ] && [ "$_found_mkt" != "$MARKET_ADDRESS" ]; then
+            MARKET_ADDRESS="$_found_mkt"
+            LAST_MARKET_FETCH=0
+            echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET-CHANGE - ${_found_mkt}"
           fi
-        done
+          echo "$(date '+%Y-%m-%d %H:%M:%S') QUEUE - ${QUEUE_POS}/${QUEUE_TOTAL}"
+        fi
       fi
     fi
 
