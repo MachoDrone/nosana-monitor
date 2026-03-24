@@ -390,73 +390,8 @@ while true; do
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
 
-      # Queue position: check known market first, then scan all if not found
-      # MarketAccount layout: queue Vec<Pubkey> at offset 147 (4-byte len + N*32 pubkeys)
-      _q_info="0 0 "
-      if [ -n "$MARKET_ADDRESS" ]; then
-        # Step 1: check the known market (single account, fast)
-        _q_info=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
-          -H "Content-Type: application/json" \
-          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${MARKET_ADDRESS}\",{\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
-import sys,json,base64,struct
-try:
-  ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  def to_b58(pk):
-    n=int.from_bytes(pk,'big');o=[]
-    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
-    for x in pk:
-      if x==0:o.append(b'1')
-      else:break
-    return b''.join(reversed(o)).decode()
-  target='${PUBKEY}'
-  r=json.load(sys.stdin)['result']['value']
-  data=base64.b64decode(r['data'][0])
-  vl=struct.unpack_from('<I',data,147)[0]
-  for i in range(min(vl,314)):
-    if to_b58(data[151+i*32:151+(i+1)*32])==target:
-      print(f'{i+1} {vl} ${MARKET_ADDRESS}');sys.exit(0)
-  print('0 0 ')
-except:
-  print('0 0 ')
-" 2>/dev/null || echo "0 0 ")
-      fi
-      # Step 2: if not found, use memcmp to search queue positions 0-19
-      # Each call is tiny (just checks if pubkey exists at a specific offset)
-      if [ "$(echo "$_q_info" | cut -d' ' -f1)" = "0" ]; then
-        _pos=0
-        while [ "$_pos" -lt 20 ]; do
-          _off=$((151 + _pos * 32))
-          _match=$(curl -sf --max-time 5 -X POST "$SOLANA_RPC" \
-            -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224},{\"memcmp\":{\"offset\":${_off},\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":147,\"length\":4}}]}" 2>/dev/null || echo "")
-          _found=$(echo "$_match" | python3 -c "
-import sys,json,base64,struct
-try:
-  r=json.load(sys.stdin).get('result',[])
-  if r:
-    vl=struct.unpack_from('<I',base64.b64decode(r[0]['account']['data'][0]),0)[0]
-    print(f'$((_pos + 1)) {vl} {r[0][\"pubkey\"]}')
-  else:print('')
-except:print('')
-" 2>/dev/null)
-          if [ -n "$_found" ]; then
-            _q_info="$_found"
-            break
-          fi
-          _pos=$((_pos + 1))
-        done
-      fi
-      QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
-      QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
-      _found_market=$(echo "$_q_info" | cut -d' ' -f3)
-      if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') QUEUE - ${QUEUE_POS}/${QUEUE_TOTAL}"
-      fi
-      if [ -n "$_found_market" ] && [ "$_found_market" != "$MARKET_ADDRESS" ]; then
-        MARKET_ADDRESS="$_found_market"
-        LAST_MARKET_FETCH=0  # force slug refresh on next specs check
-        echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET-CHANGE - ${_found_market}"
-      fi
+      # Queue position is now handled by the Cloudflare Worker cron
+      # (avoids Solana RPC rate limits from operator's IP)
     fi
 
     # Startup heartbeat or hourly heartbeat with node info
@@ -491,12 +426,7 @@ except:print('')
   if [ -n "$DASHBOARD_URL" ]; then
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
-      # Queue display: use on-chain position if available, else node/info
-      if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
-        _dash_q="${QUEUE_POS}"
-      else
-        _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
-      fi
+      _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
       # Derive display state from Solana RPC (source of truth)
       # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
       if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
@@ -590,11 +520,11 @@ print(b''.join(reversed(o)).decode())
     fi
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
       LAST_DASHBOARD_PUSH=$NOW
       LAST_DASHBOARD_STATE="$_dash_combined"
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
       LAST_DASHBOARD_PUSH=$NOW
     fi
   fi

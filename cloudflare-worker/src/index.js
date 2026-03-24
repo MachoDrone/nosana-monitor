@@ -1178,10 +1178,98 @@ async function handleScheduled(env) {
       }
     }
 
+    // Queue position scan for QUEUED hosts (from Cloudflare IP, avoids operator rate limits)
+    const JOBS_PROGRAM = 'nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM';
+    const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+
+    for (const [hostName, host] of Object.entries(data)) {
+      if (host.state !== 'QUEUED' || !host.nodeAddress) continue;
+
+      // Try known market first
+      let found = false;
+      if (host.marketAddress) {
+        found = await scanMarketQueue(SOLANA_RPC, host.marketAddress, host.nodeAddress, data, hostName);
+      }
+
+      // If not found, memcmp scan positions 0-19
+      if (!found) {
+        for (let pos = 0; pos < 20; pos++) {
+          const off = 151 + pos * 32;
+          try {
+            const res = await fetch(SOLANA_RPC, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0', id: 1, method: 'getProgramAccounts',
+                params: [JOBS_PROGRAM, {
+                  filters: [
+                    { dataSize: 10224 },
+                    { memcmp: { offset: off, bytes: host.nodeAddress } },
+                  ],
+                  encoding: 'base64',
+                  dataSlice: { offset: 147, length: 4 },
+                }],
+              }),
+            });
+            const json = await res.json();
+            const results = json.result || [];
+            if (results.length > 0) {
+              const buf = Uint8Array.from(atob(results[0].account.data[0]), c => c.charCodeAt(0));
+              const total = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+              data[hostName].q = String(pos + 1);
+              data[hostName].queueTotal = String(total);
+              if (results[0].pubkey !== host.marketAddress) {
+                data[hostName].marketAddress = results[0].pubkey;
+              }
+              changed = true;
+              break;
+            }
+          } catch { break; }
+        }
+      }
+    }
+
     if (changed) {
       await env.FLEET_DATA.put(token, JSON.stringify(data));
     }
   }
+}
+
+async function scanMarketQueue(rpc, marketAddr, nodeAddr, data, hostName) {
+  try {
+    const res = await fetch(rpc, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'getAccountInfo',
+        params: [marketAddr, { encoding: 'base64', dataSlice: { offset: 147, length: 4 + 314 * 32 } }],
+      }),
+    });
+    const json = await res.json();
+    const raw = json.result?.value?.data?.[0];
+    if (!raw) return false;
+    const buf = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+    const qLen = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+    if (qLen < 1 || qLen > 314) return false;
+    // Decode target pubkey to bytes for comparison
+    const ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const targetBytes = new Uint8Array(32);
+    let num = 0n;
+    for (const ch of nodeAddr) { num = num * 58n + BigInt(ALPHA.indexOf(ch)); }
+    for (let i = 31; i >= 0; i--) { targetBytes[i] = Number(num & 0xFFn); num >>= 8n; }
+    for (let i = 0; i < qLen; i++) {
+      let match = true;
+      for (let b = 0; b < 32; b++) {
+        if (buf[4 + i * 32 + b] !== targetBytes[b]) { match = false; break; }
+      }
+      if (match) {
+        data[hostName].q = String(i + 1);
+        data[hostName].queueTotal = String(qLen);
+        return true;
+      }
+    }
+    return false;
+  } catch { return false; }
 }
 
 /* ------------------------------------------------------------------ */
