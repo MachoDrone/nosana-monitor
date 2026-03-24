@@ -382,7 +382,7 @@ async function handleDashboardGet(token, env) {
   ${totalHosts > 0 ? `
   <div id="gatherBar" class="tap" data-label="${completeHosts < totalHosts ? 'Gathering data from nodes... ' + completeHosts + '/' + totalHosts : 'All ' + totalHosts + ' nodes reporting'}" style="margin-bottom:8px">
     <div style="background:#222;border-radius:4px;height:4px;overflow:hidden;display:flex;justify-content:center">
-      <div id="gatherFill" data-gathering="${completeHosts < totalHosts ? '1' : '0'}" style="width:${completeHosts < totalHosts ? Math.round((completeHosts / totalHosts) * 100) + '%' : '0%'};height:100%;background:${completeHosts < totalHosts ? '#4ade80' : '#15803d'};border-radius:4px;transition:width 1s ease"></div>
+      <div id="gatherFill" data-gathering="${completeHosts < totalHosts ? '1' : '0'}" style="width:${completeHosts < totalHosts ? Math.round((completeHosts / totalHosts) * 100) + '%' : '0%'};height:100%;background:${completeHosts < totalHosts ? '#4ade80' : '#15803d'};border-radius:4px"></div>
     </div>
     ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
@@ -922,19 +922,11 @@ async function handleDashboardGet(token, env) {
           if (document.hidden) return;
           elapsed++;
           if (gatherFill && gatherFill.dataset.gathering === '0') {
-            // Alternate: even cycles grow, odd cycles shrink
-            const cycle = Number(localStorage.getItem('nosana-bar-cycle') || '0');
-            const growing = cycle % 2 === 0;
-            const pct = growing
-              ? Math.round((elapsed / intv) * 100)
-              : Math.max(0, 100 - Math.round((elapsed / intv) * 100));
+            const pct = Math.min(100, Math.round((elapsed / intv) * 100));
             gatherFill.style.width = pct + '%';
-            gatherFill.style.transition = 'width 1s linear';
           }
           updateStatus();
           if (elapsed >= intv) {
-            const c = Number(localStorage.getItem('nosana-bar-cycle') || '0');
-            localStorage.setItem('nosana-bar-cycle', String(c + 1));
             location.reload();
           }
         }, 1000);
