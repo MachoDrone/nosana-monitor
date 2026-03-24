@@ -381,8 +381,8 @@ async function handleDashboardGet(token, env) {
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${totalHosts > 0 ? `
   <div id="gatherBar" class="tap" data-label="${completeHosts < totalHosts ? 'Gathering data from nodes... ' + completeHosts + '/' + totalHosts : 'All ' + totalHosts + ' nodes reporting'}" style="margin-bottom:8px">
-    <div style="background:#222;border-radius:4px;height:4px;overflow:hidden">
-      <div id="gatherFill" style="width:${Math.round((completeHosts / totalHosts) * 100)}%;height:100%;background:#4ade80;border-radius:4px;transition:width 0.5s"></div>
+    <div style="background:#222;border-radius:4px;height:4px;overflow:hidden;display:flex;justify-content:center">
+      <div id="gatherFill" data-gathering="${completeHosts < totalHosts ? '1' : '0'}" style="width:${completeHosts < totalHosts ? Math.round((completeHosts / totalHosts) * 100) + '%' : '0%'};height:100%;background:${completeHosts < totalHosts ? '#4ade80' : '#15803d'};border-radius:4px;transition:width 1s ease"></div>
     </div>
     ${completeHosts < totalHosts ? '<div style="font-size:10px;color:#666;margin-top:2px">Gathering data from nodes\u{2026}</div>' : ''}
   </div>` : ''}
@@ -865,25 +865,8 @@ async function handleDashboardGet(token, env) {
       // Save current page to localStorage
       localStorage.setItem(cacheKey, JSON.stringify({ ts: loadTime }));
 
-      // Progress bar pulse when all data is complete
       const complete = ${completeHosts};
       const total = ${totalHosts};
-      function replayPulse() {
-        const fill = document.getElementById('gatherFill');
-        if (!fill) return;
-        document.body.classList.remove('bar-complete');
-        fill.style.width = '0%';
-        void fill.offsetWidth; // force reflow
-        fill.style.width = Math.round((complete / total) * 100) + '%';
-        setTimeout(() => document.body.classList.add('bar-complete'), 50);
-      }
-      if (complete >= total && total > 0) {
-        document.body.classList.add('bar-complete');
-      }
-      const gatherBar = document.getElementById('gatherBar');
-      if (gatherBar) gatherBar.addEventListener('click', (e) => {
-        if (complete >= total) replayPulse();
-      });
 
       // Kiosk/Fast mode auto-refresh with visibility awareness
       const kioskInterval = 120;
@@ -911,8 +894,9 @@ async function handleDashboardGet(token, env) {
 
       function updateStatus() {
         if (isFast) {
-          const left = Math.max(0, Math.round((fastExpiry - Date.now()) / 60000));
-          const secs = Math.max(0, Math.round((fastExpiry - Date.now()) / 1000) % 60);
+          const totalSecs = Math.max(0, Math.floor((fastExpiry - Date.now()) / 1000));
+          const left = Math.floor(totalSecs / 60);
+          const secs = totalSecs % 60;
           fastStatus.textContent = 'Fast mode: ' + left + 'm ' + secs + 's remaining \u{2022} refresh ' + fastInterval + 's';
           fastStatus.style.display = '';
           if (Date.now() >= fastExpiry) {
@@ -937,8 +921,8 @@ async function handleDashboardGet(token, env) {
         refreshTimer = setInterval(() => {
           if (document.hidden) return;
           elapsed++;
-          if (gatherFill && complete >= total) {
-            const pct = Math.max(0, 100 - Math.round((elapsed / intv) * 100));
+          if (gatherFill && gatherFill.dataset.gathering === '0') {
+            const pct = Math.round((elapsed / intv) * 100);
             gatherFill.style.width = pct + '%';
             gatherFill.style.transition = 'width 1s linear';
           }
