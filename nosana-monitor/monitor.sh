@@ -200,17 +200,13 @@ send_notify() {
 }
 
 # Dashboard push: send host status to Cloudflare Worker
-# Usage: dashboard_push "n_status" "queue_pos"
-#   n_status: 1=node up, 0=node down
-#   queue_pos: queue position string or "-"
 dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
-  _n="$1"
-  _q="$2"
+  _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"
   _host="${HOST_NAME:-$(hostname)}"
   curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\"}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\"}" >/dev/null 2>&1 || true
 }
 
 # Startup message
@@ -248,6 +244,9 @@ FAIL_COUNT=0
 DOWN_SINCE=""
 LAST_DASHBOARD_PUSH=0
 LAST_DASHBOARD_STATE=""
+LAST_DASH_STATE=""
+LAST_DASH_JOBSTART="0"
+LAST_DASH_JOBTIMEOUT="0"
 LAST_STATE=""
 LAST_STATUS=""
 STATE_SINCE=""
@@ -347,6 +346,12 @@ while true; do
         CURRENT_STATUS="API REQUEST FAILED"
       elif [ "$STATUS_HTTP" = "200" ]; then
         CURRENT_STATUS=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('status','PARSE_ERROR, UNKNOWN'))" 2>/dev/null || echo "PARSE_ERROR, UNKNOWN")
+        SPECS_AVG_DL=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('avgDownload10',''))" 2>/dev/null || echo "")
+        SPECS_AVG_UL=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('avgUpload10',''))" 2>/dev/null || echo "")
+        SPECS_AVG_PING=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('avgPing10',''))" 2>/dev/null || echo "")
+        SPECS_REWARDS=$(python3 -c "import sys,json; print(json.load(open('/tmp/status_response')).get('claimableUptimeNosRewards',''))" 2>/dev/null || echo "")
+        SPECS_JOB_ADDR=$(python3 -c "import sys,json; v=json.load(open('/tmp/status_response')).get('jobAddress',''); print(v if v else '')" 2>/dev/null || echo "")
+        SPECS_QUEUE_TOTAL=$(curl -sf --max-time 5 "https://dashboard.k8s.prd.nos.ci/api/stats/nodes-country" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(sum(x.get('queue',0) for x in (d.get('data',d) if isinstance(d,dict) else d)))" 2>/dev/null || echo "")
       else
         CURRENT_STATUS="API REQUEST FAILED (HTTP ${STATUS_HTTP})"
       fi
@@ -391,17 +396,67 @@ while true; do
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
       _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('queue','-'))" 2>/dev/null || echo "-")
+      # Derive display state from jobs API (most reliable source)
+      # Cache last known state to survive rate limits
+      _job_resp=$(curl -sf --max-time 5 "https://dashboard.k8s.prd.nos.ci/api/jobs?node=${PUBKEY}&limit=1" 2>/dev/null || echo "")
+      _job_state=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0]['state'] if j else '')" 2>/dev/null || echo "")
+      if [ "$_job_state" = "1" ]; then
+        _dash_s="RUNNING"
+        _dash_jobstart=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0].get('timeStart',0) if j else 0)" 2>/dev/null || echo "0")
+        _dash_jobtimeout=$(echo "$_job_resp" | python3 -c "import sys,json; j=json.load(sys.stdin).get('jobs',[]); print(j[0].get('timeout',0) if j else 0)" 2>/dev/null || echo "0")
+        LAST_DASH_STATE="RUNNING"
+        LAST_DASH_JOBSTART="$_dash_jobstart"
+        LAST_DASH_JOBTIMEOUT="$_dash_jobtimeout"
+      elif [ -n "$_job_state" ]; then
+        # Got a valid response but not running
+        if [ "${CURRENT_STATE}" = "RESTARTING" ]; then
+          _dash_s="RESTARTING"
+        else
+          _dash_s="QUEUED"
+        fi
+        _dash_jobstart="0"
+        _dash_jobtimeout="0"
+        LAST_DASH_STATE="$_dash_s"
+        LAST_DASH_JOBSTART="0"
+        LAST_DASH_JOBTIMEOUT="0"
+      else
+        # API failed (rate limit etc) — use cached state
+        _dash_s="${LAST_DASH_STATE:-QUEUED}"
+        _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
+        _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+      fi
+      _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
+      _dash_dl="${SPECS_AVG_DL:-}"
+      _dash_ul="${SPECS_AVG_UL:-}"
+      _dash_ping="${SPECS_AVG_PING:-}"
+      _dash_rewards="${SPECS_REWARDS:-}"
+      _dash_disk=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('disk_gb',''))" 2>/dev/null || echo "")
+      _dash_gpu=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['name'] if devs else '')" 2>/dev/null || echo "")
+      _dash_ram=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('ram_mb',''))" 2>/dev/null || echo "")
+      _dash_gpuid=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['index'] if devs else '')" 2>/dev/null || echo "")
     else
       _dash_n=0
       _dash_q="-"
+      _dash_s=""
+      _dash_v=""
+      _dash_dl=""
+      _dash_ul=""
+      _dash_ping=""
+      _dash_rewards=""
+      _dash_disk=""
+      _dash_gpu=""
+      _dash_ram=""
+      _dash_gpuid=""
+      _dash_jobstart="0"
+      _dash_jobtimeout="0"
     fi
-    _dash_state="${_dash_n}:${_dash_q}"
-    if [ "$_dash_state" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q"
+    _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
+    if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
       LAST_DASHBOARD_PUSH=$NOW
-      LAST_DASHBOARD_STATE="$_dash_state"
+      LAST_DASHBOARD_STATE="$_dash_combined"
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${SPECS_QUEUE_TOTAL:-}"
       LAST_DASHBOARD_PUSH=$NOW
     fi
   fi

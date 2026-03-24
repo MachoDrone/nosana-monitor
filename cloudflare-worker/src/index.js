@@ -49,10 +49,10 @@ function htmlResponse(html, status = 200) {
  * @param {boolean} opts.recovery - host was down/stale but now all checks pass
  * @returns {'critical'|'warning'|'info'}
  */
-function classifyAlert({ m, c, n, stale = false, recovery = false }) {
+function classifyAlert({ n, stale = false, recovery = false }) {
   if (recovery) return 'info';
-  if (Number(m) === 0 || stale) return 'critical';
-  if (Number(c) === 0 || Number(n) === 0) return 'warning';
+  if (stale) return 'critical';
+  if (Number(n) === 0) return 'warning';
   return 'info';
 }
 
@@ -126,7 +126,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, m, c, n, q } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
@@ -135,26 +135,31 @@ async function handleStatusPost(token, request, env) {
 
   // Capture previous state for recovery detection
   const prev = data[host] || null;
-  const wasDown =
-    prev &&
-    (prev.alerted === true ||
-      Number(prev.m) === 0 ||
-      Number(prev.c) === 0 ||
-      Number(prev.n) === 0);
-
-  const allUpNow =
-    Number(m) === 1 && Number(c) === 1 && Number(n) === 1;
-
-  const isDown = Number(m) === 0 || Number(c) === 0 || Number(n) === 0;
+  const wasDown = prev && (prev.alerted === true || Number(prev.n) === 0);
+  const allUpNow = Number(n) === 1;
+  const isDown = Number(n) === 0;
 
   // Update host entry
   data[host] = {
-    m: m ?? 0,
-    c: c ?? 0,
     n: n ?? 0,
     q: q ?? '',
+    state: state ?? '',
+    nodeAddress: nodeAddress ?? '',
+    version: version ?? '',
+    dl: dl ?? '',
+    ul: ul ?? '',
+    ping: ping ?? '',
+    disk: disk ?? '',
+    gpu: gpu ?? '',
+    tier: tier ?? '',
+    ram: ram ?? '',
+    gpuId: gpuId ?? '',
+    jobStart: jobStart ?? 0,
+    jobTimeout: jobTimeout ?? 0,
+    queueTotal: queueTotal ?? '',
+    rewards: rewards ?? '',
     seen: Date.now(),
-    alerted: isDown, // keep alerted true while any metric is down
+    alerted: isDown,
   };
 
   await env.FLEET_DATA.put(token, JSON.stringify(data));
@@ -174,11 +179,9 @@ async function handleStatusPost(token, request, env) {
   // --- Down alert ---
   if (isDown) {
     const parts = [];
-    if (Number(m) === 0) parts.push('machine DOWN');
-    if (Number(c) === 0) parts.push('container DOWN');
     if (Number(n) === 0) parts.push('node DOWN');
 
-    const level = classifyAlert({ m, c, n });
+    const level = classifyAlert({ n });
     const icon = level === 'critical' ? '\u{1F534}' : '\u{1F7E1}';
     const payload = JSON.stringify({
       title: alertTitle(level),
@@ -206,11 +209,55 @@ async function handleDashboardGet(token, env) {
 
   const now = Date.now();
 
+  function tap(label, content) {
+    return '<span class="tap" data-label="' + label + '">' + content + '</span>';
+  }
+
   function indicator(val, seen) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return '\u{2753}';
-    if (Number(val) === 0) return '\u{274C}';
-    return '\u{1F7E2}';
+    if (stale) return tap('STALE', '\u{2753}');
+    if (Number(val) === 0) return tap('DOWN', '\u{274C}');
+    return tap('UP', '\u{1F7E2}');
+  }
+
+  function tierIndicator(t) {
+    if (!t) return '-';
+    const ch = t.charAt(0).toUpperCase();
+    const label = ch === 'P' ? 'PREMIUM' : ch === 'C' ? 'COMMUNITY' : t;
+    if (ch === 'P') return tap(label, '<span style="color:#4ade80">' + ch + '</span>');
+    if (ch === 'C') return tap(label, '<span style="color:#16a34a">' + ch + '</span>');
+    return tap(label, '<span style="color:#ef4444">' + ch + '</span>');
+  }
+
+  function stateIndicator(s) {
+    if (!s) return '-';
+    const st = String(s).toUpperCase();
+    if (st === 'RUNNING') return tap('RUNNING', '\u{1F535}');
+    if (st === 'QUEUED') return tap('QUEUED', '-');
+    if (st === 'RESTARTING') return tap('RESTARTING', '\u{1F7E0}');
+    return tap(st, st.charAt(0));
+  }
+
+  function fmtDuration(secs) {
+    if (!secs || secs <= 0) return '0m';
+    const d = Math.floor(secs / 86400);
+    const h = Math.floor((secs % 86400) / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const parts = [];
+    if (d > 0) parts.push(d + 'd');
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0) parts.push(m + 'm');
+    return parts.length ? parts.join(' ') : '0m';
+  }
+
+  function jobDuration(h) {
+    if (!h.jobStart || !h.jobTimeout || Number(h.jobTimeout) === 0) return '-';
+    const elapsed = Math.max(0, Math.floor(now / 1000) - Number(h.jobStart));
+    const max = Number(h.jobTimeout);
+    const pct = Math.min(100, Math.round((elapsed / max) * 100));
+    const bar = '<span class="dur-bar"><span class="dur-fill" style="width:' + pct + '%"></span></span>';
+    const text = fmtDuration(elapsed) + ' / ' + fmtDuration(max);
+    return '<span class="dur-mode dur-m-bar">' + bar + '</span><span class="dur-mode dur-m-text">' + text + '</span>';
   }
 
   function seenAgo(ts) {
@@ -223,11 +270,24 @@ async function handleDashboardGet(token, env) {
   const rows = hosts
     .map(
       ([name, h]) => `
-      <tr data-host="${name}" data-n="${h.n}" data-q="${h.q}" data-seen="${h.seen}">
+      <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
         <td class="host">${name}</td>
+        <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
+        <td>${tierIndicator(h.tier)}</td>
         <td>${indicator(h.n, h.seen)}</td>
-        <td class="q">${h.q || '-'}</td>
+        <td>${stateIndicator(h.state)}</td>
+        <td class="dur">${jobDuration(h)}</td>
+        <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : '-'}</td>
         <td class="seen">${seenAgo(h.seen)}</td>
+        <td class="rewards">${h.rewards ? Math.round(Number(h.rewards)) : '-'}</td>
+        <td class="ram">${h.ram ? (Number(h.ram) / 1024).toFixed(1) : '-'}</td>
+        <td class="disk">${h.disk || '-'}</td>
+        <td class="ver">${h.version || '-'}</td>
+        <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
+        <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
+        <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
+        <td class="gpu"><span class="gpu-mode gpu-m-full">${h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${h.gpu ? '.' : '-'}</span></td>
+        <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
       </tr>`,
     )
     .join('\n');
@@ -252,17 +312,19 @@ async function handleDashboardGet(token, env) {
     .legend{font-size:11px;color:#888;margin-bottom:12px}
     table{width:100%;border-collapse:collapse}
     th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;width:1%;white-space:nowrap}
-    th{color:#aaa;font-size:10px;text-transform:uppercase;cursor:pointer;user-select:none;
+    th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
     th:not(:first-child){height:80px;position:relative}
     th:not(:first-child) div{position:absolute;bottom:-6px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:first-child div{padding:0}
     th:hover{color:#fff}
-    th.sorted-asc::after{content:" \\25B2";font-size:9px}
-    th.sorted-desc::after{content:" \\25BC";font-size:9px}
+    th .sort-arrow{font-size:8px;color:#4ade80}
+    th:not(:first-child) .sort-arrow{font-size:6px}
     td.host{text-align:left;font-weight:600;color:#fff}
+    td.node-addr a{color:#60a5fa;text-decoration:none}
+    td.node-addr a:hover{text-decoration:underline}
     td.q{font-size:12px;color:#ccc}
-    td.seen{font-size:11px;color:#888}
+    td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur{font-size:11px;color:#888}
     .actions{margin:16px 0}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
     button{background:#16a34a;color:#fff;border:none;padding:10px 16px;
@@ -274,22 +336,49 @@ async function handleDashboardGet(token, env) {
     .hint{font-size:11px;color:#f59e0b;margin-top:8px;line-height:1.5}
     .hint a{color:#60a5fa}
     .empty{text-align:center;padding:32px;color:#666}
+    .dur-bar{display:inline-block;width:30px;height:8px;background:#333;border-radius:4px;vertical-align:middle}
+    .dur-fill{display:block;height:100%;background:#4ade80;border-radius:4px}
+    .dur-m-text{display:none}
+    body.dur-text .dur-m-bar{display:none}
+    body.dur-text .dur-m-text{display:inline}
+    .dur-toggle,.gpu-toggle{cursor:pointer;font-size:12px}
+    .gpu-m-dot{display:none}
+    body.gpu-compact .gpu-m-full{display:none}
+    body.gpu-compact .gpu-m-dot{display:inline}
+    .tap{cursor:pointer;position:relative}
+    .tap .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+      background:#333;color:#fff;font-size:10px;padding:2px 6px;border-radius:3px;
+      white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.2s}
+    .tap .tip.show{opacity:1}
     @media(max-width:400px){th,td{padding:4px 4px;font-size:12px}}
   </style>
 </head>
 <body>
   <h1>Nosana Fleet</h1>
-  <div class="legend">Tap column header to sort</div>
+  <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${
     hosts.length === 0
       ? '<div class="empty">No host data yet. Waiting for monitors...</div>'
       : `<table id="fleet">
     <thead>
       <tr>
-        <th data-col="host" data-type="string"><div>Host</div></th>
-        <th data-col="n" data-type="num"><div>Node</div></th>
-        <th data-col="q" data-type="string"><div>Queue</div></th>
-        <th data-col="seen" data-type="num"><div>Seen</div></th>
+        <th data-col="host" data-type="string"><div>PC</div></th>
+        <th data-col="node" data-type="string"><div>Node</div></th>
+        <th data-col="tier" data-type="string"><div>Status</div></th>
+        <th data-col="n" data-type="num"><div>Unknown</div></th>
+        <th data-col="state" data-type="string"><div>State</div></th>
+        <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
+        <th data-col="q" data-type="string"><div>Queued</div></th>
+        <th data-col="seen" data-type="num"><div>30min-HB</div></th>
+        <th data-col="rewards" data-type="num"><div>Rewards</div></th>
+        <th data-col="ram" data-type="num"><div>RAM</div></th>
+        <th data-col="disk" data-type="num"><div>Disk</div></th>
+        <th data-col="ver" data-type="string"><div>Ver</div></th>
+        <th data-col="dl" data-type="num"><div>DL</div></th>
+        <th data-col="ul" data-type="num"><div>UL</div></th>
+        <th data-col="ping" data-type="num"><div>Ping</div></th>
+        <th data-col="gpu" data-type="string"><div>GPU <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
+        <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
       </tr>
     </thead>
     <tbody>
@@ -311,13 +400,93 @@ async function handleDashboardGet(token, env) {
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
 
+    /* ---- Duration toggle ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-dur-mode') || 'bar';
+      if (mode === 'text') document.body.classList.add('dur-text');
+      const tog = document.getElementById('durToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('dur-text');
+        const cur = document.body.classList.contains('dur-text') ? 'text' : 'bar';
+        localStorage.setItem('nosana-dur-mode', cur);
+      });
+    })();
+
+    /* ---- GPU toggle ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-gpu-mode') || 'full';
+      if (mode === 'compact') document.body.classList.add('gpu-compact');
+      const tog = document.getElementById('gpuToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('gpu-compact');
+        const cur = document.body.classList.contains('gpu-compact') ? 'compact' : 'full';
+        localStorage.setItem('nosana-gpu-mode', cur);
+      });
+    })();
+
+    /* ---- Tap tooltips ---- */
+    document.addEventListener('click', (e) => {
+      const tap = e.target.closest('.tap');
+      if (!tap) return;
+      let tip = tap.querySelector('.tip');
+      if (tip) { tip.remove(); return; }
+      document.querySelectorAll('.tip').forEach(t => t.remove());
+      tip = document.createElement('span');
+      tip.className = 'tip show';
+      tip.textContent = tap.dataset.label;
+      tap.appendChild(tip);
+      setTimeout(() => { if (tip.parentNode) tip.remove(); }, 1500);
+    });
+
     /* ---- Sortable columns ---- */
     (function() {
       const table = document.getElementById('fleet');
       if (!table) return;
       const headers = table.querySelectorAll('th');
-      let currentSort = null;
+      let currentSort = 'host';
       let sortDir = 1;
+
+      function clearArrows() {
+        headers.forEach(h => {
+          const arrow = h.querySelector('.sort-arrow');
+          if (arrow) arrow.remove();
+        });
+      }
+
+      function addArrow(th, dir) {
+        clearArrows();
+        const arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        const isRotated = th !== headers[0];
+        const div = th.querySelector('div');
+        if (isRotated) {
+          arrow.textContent = dir === 1 ? '\\u25C0 ' : '\\u25B6 ';
+          if (div) div.insertBefore(arrow, div.firstChild);
+          else th.insertBefore(arrow, th.firstChild);
+        } else {
+          arrow.textContent = dir === 1 ? ' \\u25B2' : ' \\u25BC';
+          if (div) div.appendChild(arrow);
+          else th.appendChild(arrow);
+        }
+      }
+
+      function resetSort() {
+        currentSort = 'host';
+        sortDir = 1;
+        addArrow(headers[0], sortDir);
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => (a.children[0] ? a.children[0].textContent.trim() : '').localeCompare(b.children[0] ? b.children[0].textContent.trim() : ''));
+        rows.forEach(r => tbody.appendChild(r));
+      }
+
+      const resetBtn = document.getElementById('sortReset');
+      if (resetBtn) resetBtn.addEventListener('click', resetSort);
+
+      // Show default sort arrow on load
+      addArrow(headers[0], 1);
 
       headers.forEach((th, idx) => {
         th.addEventListener('click', () => {
@@ -331,30 +500,20 @@ async function handleDashboardGet(token, env) {
             sortDir = 1;
           }
 
-          headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
-          th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+          addArrow(th, sortDir);
 
           const tbody = table.querySelector('tbody');
           const rows = Array.from(tbody.querySelectorAll('tr'));
 
           rows.sort((a, b) => {
-            let va, vb;
-            if (col === 'host') {
-              va = a.dataset.host;
-              vb = b.dataset.host;
-            } else if (col === 'seen') {
-              va = Number(a.dataset.seen);
-              vb = Number(b.dataset.seen);
-            } else if (col === 'q') {
-              va = a.dataset.q;
-              vb = b.dataset.q;
-            } else {
-              va = Number(a.dataset[col]);
-              vb = Number(b.dataset[col]);
+            const cellA = a.children[idx] ? a.children[idx].textContent.trim() : '';
+            const cellB = b.children[idx] ? b.children[idx].textContent.trim() : '';
+            if (type === 'num') {
+              const na = parseFloat(cellA) || 0;
+              const nb = parseFloat(cellB) || 0;
+              return (na - nb) * sortDir;
             }
-
-            if (type === 'num') return (va - vb) * sortDir;
-            return String(va).localeCompare(String(vb)) * sortDir;
+            return cellA.localeCompare(cellB) * sortDir;
           });
 
           rows.forEach(r => tbody.appendChild(r));
@@ -880,7 +1039,7 @@ async function handleScheduled(env) {
 
       if (age > STALE_THRESHOLD_MS && wasUp && !host.alerted) {
         // Newly stale — send critical alert
-        const level = classifyAlert({ m: host.m, c: host.c, n: host.n, stale: true });
+        const level = classifyAlert({ n: host.n, stale: true });
         const payload = JSON.stringify({
           title: alertTitle(level),
           body: `\u{2753} ${hostName}: OFFLINE (no data for 30m)`,
