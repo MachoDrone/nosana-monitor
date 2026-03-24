@@ -859,9 +859,22 @@ async function handleDashboardGet(token, env) {
       // Progress bar pulse when all data is complete
       const complete = ${completeHosts};
       const total = ${totalHosts};
+      function replayPulse() {
+        const fill = document.getElementById('gatherFill');
+        if (!fill) return;
+        document.body.classList.remove('bar-complete');
+        fill.style.width = '0%';
+        void fill.offsetWidth; // force reflow
+        fill.style.width = Math.round((complete / total) * 100) + '%';
+        setTimeout(() => document.body.classList.add('bar-complete'), 50);
+      }
       if (complete >= total && total > 0) {
         document.body.classList.add('bar-complete');
       }
+      const gatherBar = document.getElementById('gatherBar');
+      if (gatherBar) gatherBar.addEventListener('click', (e) => {
+        if (complete >= total) replayPulse();
+      });
 
       // Refresh button with rate limit awareness
       const refreshBtn = document.getElementById('refreshBtn');
