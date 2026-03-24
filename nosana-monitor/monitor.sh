@@ -385,17 +385,13 @@ while true; do
       LAST_STATUS="$CURRENT_STATUS"
       LAST_STATUS_CHECK=$NOW
 
-      # Queue position: read market account from Solana RPC
-      if [ -n "$MARKET_ADDRESS" ]; then
-        _q_data=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
-          -H "Content-Type: application/json" \
-          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${MARKET_ADDRESS}\",{\"encoding\":\"base64\"}]}" 2>/dev/null || echo "")
-        if [ -n "$_q_data" ]; then
-          _q_info=$(echo "$_q_data" | python3 -c "
+      # Queue position: find our node in any market's queue on-chain
+      # MarketAccount layout: queue Vec<Pubkey> starts at offset 147
+      _q_info=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 try:
-  r=json.load(sys.stdin)['result']['value']
-  data=base64.b64decode(r['data'][0])
   ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
   def to_b58(pk):
     n=int.from_bytes(pk,'big');o=[]
@@ -404,28 +400,26 @@ try:
       if x==0:o.append(b'1')
       else:break
     return b''.join(reversed(o)).decode()
-  # Scan for Vec<Pubkey> containing our node
   target='${PUBKEY}'
-  best_pos=0;best_total=0
-  off=0
-  while off<len(data)-4:
-    vl=struct.unpack_from('<I',data,off)[0]
-    if 1<=vl<=500 and off+4+vl*32<=len(data):
-      for i in range(vl):
-        pk=data[off+4+i*32:off+4+(i+1)*32]
-        if to_b58(pk)==target:
-          best_pos=i+1;best_total=vl;break
-      if best_pos>0:break
-      off+=4+vl*32
-    else:
-      off+=1
-  print(f'{best_pos} {best_total}')
+  for acct in json.load(sys.stdin).get('result',[]):
+    data=base64.b64decode(acct['account']['data'][0])
+    if len(data)<151:continue
+    vl=struct.unpack_from('<I',data,147)[0]
+    if vl<1 or vl>314:continue
+    for i in range(vl):
+      pk=data[151+i*32:151+(i+1)*32]
+      if to_b58(pk)==target:
+        print(f'{i+1} {vl} {acct[\"pubkey\"]}');sys.exit(0)
+  print('0 0 ')
 except:
-  print('0 0')
-" 2>/dev/null || echo "0 0")
-          QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
-          QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
-        fi
+  print('0 0 ')
+" 2>/dev/null || echo "0 0 ")
+      QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
+      QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
+      _found_market=$(echo "$_q_info" | cut -d' ' -f3)
+      if [ -n "$_found_market" ] && [ "$_found_market" != "$MARKET_ADDRESS" ]; then
+        MARKET_ADDRESS="$_found_market"
+        LAST_MARKET_FETCH=0  # force slug refresh on next specs check
       fi
     fi
 
