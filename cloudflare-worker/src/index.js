@@ -243,7 +243,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     if (st === 'RUNNING') return tap('RUNNING', '\u{1F535}');
-    if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">q</span>');
+    if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">Q</span>');
     if (st === 'RESTARTING') return tap('RESTARTING', '\u{1F7E0}');
     return tap(st, st.charAt(0));
   }
