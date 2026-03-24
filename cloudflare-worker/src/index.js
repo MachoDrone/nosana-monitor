@@ -227,9 +227,9 @@ async function handleDashboardGet(token, env) {
 
   function indicator(val, seen) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return tap('STALE', '\u{2753}');
-    if (Number(val) === 0) return tap('DOWN', '\u{274C}');
-    return tap('UP', '\u{1F7E2}');
+    if (stale) return tap('STALE', dot('#888'));
+    if (Number(val) === 0) return tap('DOWN', dot('#ef4444'));
+    return tap('UP', dot('#22c55e'));
   }
 
   function tierIndicator(t) {
@@ -241,12 +241,14 @@ async function handleDashboardGet(token, env) {
     return tap(label, '<span style="color:#ef4444">' + ch + '</span>');
   }
 
+  const dot = (color) => '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + '"></span>';
+
   function stateIndicator(s) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
-    if (st === 'RUNNING') return tap('RUNNING', '\u{1F535}');
+    if (st === 'RUNNING') return tap('RUNNING', dot('#3b82f6'));
     if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">Q</span>');
-    if (st === 'RESTARTING') return tap('RESTARTING', '\u{1F7E0}');
+    if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'));
     return tap(st, st.charAt(0));
   }
 
