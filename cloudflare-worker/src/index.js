@@ -434,10 +434,10 @@ async function handleDashboardGet(token, env) {
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
     <div id="fastHint" style="display:none" class="hint">
-      <b>Kiosk mode</b> (default): refreshes every ${totalHosts <= 10 ? '30s' : totalHosts <= 100 ? '60s' : '120s'} \u{2014} safe for always-on displays.<br>
-      <b>Fast mode</b>: refreshes every 30s for quick monitoring, then reverts to kiosk.<br>
+      <b>Kiosk mode</b> (default): refreshes every 2 min \u{2014} low API usage, safe for always-on displays.<br>
+      <b>Fast mode</b>: refreshes every ${totalHosts <= 10 ? '10' : totalHosts <= 50 ? '15' : totalHosts <= 150 ? '20' : totalHosts <= 250 ? '30' : '45'}s for active monitoring. Auto-reverts to kiosk after timeout.<br>
       Both modes pause when the tab is in the background to save API calls.<br>
-      Each refresh counts toward a daily limit of 100K (free tier).
+      Each refresh counts toward a daily limit of 100K (free tier). Fleet size: ${totalHosts} hosts.
     </div>
     <div id="installHint" style="display:none" class="hint">
       <b>Install App</b> adds a desktop/home screen shortcut that opens in its own window.<br>
@@ -892,8 +892,8 @@ async function handleDashboardGet(token, env) {
       });
 
       // Kiosk/Fast mode auto-refresh with visibility awareness
-      const kioskInterval = ${totalHosts <= 10 ? 30 : totalHosts <= 100 ? 60 : 120};
-      const fastInterval = 30;
+      const kioskInterval = 120;
+      const fastInterval = ${totalHosts <= 10 ? 10 : totalHosts <= 50 ? 15 : totalHosts <= 150 ? 20 : totalHosts <= 250 ? 30 : 45};
       let isFast = false;
       let fastExpiry = 0;
       let refreshTimer = null;
