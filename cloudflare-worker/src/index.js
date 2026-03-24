@@ -419,26 +419,20 @@ async function handleDashboardGet(token, env) {
 
   <div class="actions">
     <div class="btn-row">
+      <select id="modeSelect" style="background:#222;color:#15803d;border:1px solid #15803d;border-radius:6px;padding:8px 10px;font-size:12px">
+        <option value="kiosk" selected>Kiosk</option>
+        <option value="10">Fast 10 min</option>
+        <option value="15">Fast 15 min</option>
+        <option value="20">Fast 20 min</option>
+        <option value="30">Fast 30 min</option>
+      </select>
+      <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888;margin-right:16px" title="Info">\u{24D8}</span>
       <button id="pushBtn">Enable Push</button>
       <button id="soundBtn">Enable Sound</button>
-      <button id="fastBtn" class="on">Fast Mode</button>
-      <select id="fastTimeout" style="background:#222;color:#15803d;border:1px solid #15803d;border-radius:6px;padding:6px 8px;font-size:12px">
-        <option value="10">10 min</option>
-        <option value="15" selected>15 min</option>
-        <option value="20">20 min</option>
-        <option value="30">30 min</option>
-      </select>
-      <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888" title="Info">\u{24D8}</span>
       <button id="installBtn" class="on" style="display:none">Install App</button>
     </div>
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
-    <div id="fastHint" style="display:none" class="hint">
-      <b>Kiosk mode</b> (default): refreshes every 2 min \u{2014} low API usage, safe for always-on displays.<br>
-      <b>Fast mode</b>: refreshes every ${totalHosts <= 10 ? '10' : totalHosts <= 50 ? '15' : totalHosts <= 150 ? '20' : totalHosts <= 250 ? '30' : '45'}s for active monitoring. Auto-reverts to kiosk after timeout.<br>
-      Both modes pause when the tab is in the background to save API calls.<br>
-      Each refresh counts toward a daily limit of 100K (free tier). Fleet size: ${totalHosts} hosts.
-    </div>
     <div id="installHint" style="display:none" class="hint">
       <b>Install App</b> adds a desktop/home screen shortcut that opens in its own window.<br>
       \u{2705} Chrome, Edge (Windows, macOS, Linux, Android)<br>
@@ -898,21 +892,19 @@ async function handleDashboardGet(token, env) {
       let fastExpiry = 0;
       let refreshTimer = null;
 
-      const fastBtn = document.getElementById('fastBtn');
-      const fastTimeout = document.getElementById('fastTimeout');
+      const modeSelect = document.getElementById('modeSelect');
       const fastStatus = document.getElementById('fastStatus');
       const fastInfo = document.getElementById('fastInfo');
-      const fastHint = document.getElementById('fastHint');
       const refreshBtn = document.getElementById('refreshBtn');
       const gatherFill = document.getElementById('gatherFill');
 
-      // Restore fast mode if active from before refresh
+      // Restore mode from localStorage
       const savedFast = localStorage.getItem('nosana-fast-expiry');
       if (savedFast && Number(savedFast) > Date.now()) {
         isFast = true;
         fastExpiry = Number(savedFast);
-        fastBtn.textContent = 'Kiosk Mode';
-        fastBtn.classList.remove('on');
+        const savedMins = localStorage.getItem('nosana-fast-mins') || '15';
+        modeSelect.value = savedMins;
       }
 
       function currentInterval() { return isFast ? fastInterval : kioskInterval; }
@@ -920,14 +912,15 @@ async function handleDashboardGet(token, env) {
       function updateStatus() {
         if (isFast) {
           const left = Math.max(0, Math.round((fastExpiry - Date.now()) / 60000));
-          fastStatus.textContent = 'Fast mode: ' + left + 'm remaining \u{2022} refresh ' + fastInterval + 's';
+          const secs = Math.max(0, Math.round((fastExpiry - Date.now()) / 1000) % 60);
+          fastStatus.textContent = 'Fast mode: ' + left + 'm ' + secs + 's remaining \u{2022} refresh ' + fastInterval + 's';
           fastStatus.style.display = '';
           if (Date.now() >= fastExpiry) {
             isFast = false;
             fastExpiry = 0;
             localStorage.removeItem('nosana-fast-expiry');
-            fastBtn.textContent = 'Fast Mode';
-            fastBtn.classList.add('on');
+            localStorage.removeItem('nosana-fast-mins');
+            modeSelect.value = 'kiosk';
             fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's';
             scheduleRefresh();
           }
@@ -942,9 +935,8 @@ async function handleDashboardGet(token, env) {
         const intv = currentInterval();
         let elapsed = 0;
         refreshTimer = setInterval(() => {
-          if (document.hidden) return; // pause when not visible
+          if (document.hidden) return;
           elapsed++;
-          // Animate progress bar as countdown
           if (gatherFill && complete >= total) {
             const pct = Math.max(0, 100 - Math.round((elapsed / intv) * 100));
             gatherFill.style.width = pct + '%';
@@ -957,29 +949,26 @@ async function handleDashboardGet(token, env) {
         }, 1000);
       }
 
-      fastBtn.addEventListener('click', () => {
-        if (isFast) {
-          // Switch to kiosk
+      modeSelect.addEventListener('change', () => {
+        const val = modeSelect.value;
+        if (val === 'kiosk') {
           isFast = false;
           fastExpiry = 0;
           localStorage.removeItem('nosana-fast-expiry');
-          fastBtn.textContent = 'Fast Mode';
-          fastBtn.classList.add('on');
+          localStorage.removeItem('nosana-fast-mins');
         } else {
-          // Switch to fast
-          const mins = Number(fastTimeout.value) || 15;
+          const mins = Number(val) || 15;
           isFast = true;
           fastExpiry = Date.now() + mins * 60000;
           localStorage.setItem('nosana-fast-expiry', String(fastExpiry));
-          fastBtn.textContent = 'Kiosk Mode';
-          fastBtn.classList.remove('on');
+          localStorage.setItem('nosana-fast-mins', val);
         }
         updateStatus();
         scheduleRefresh();
       });
 
       if (fastInfo) fastInfo.addEventListener('click', () => {
-        fastHint.style.display = fastHint.style.display === 'none' ? '' : 'none';
+        alert('Kiosk mode (default):\\nRefreshes every ' + kioskInterval + 's. Low API usage, safe for always-on displays.\\n\\nFast mode:\\nRefreshes every ' + fastInterval + 's for active monitoring. Auto-reverts to kiosk after the chosen timeout.\\n\\nBoth modes pause when the tab is in the background.\\nEach refresh counts toward a daily limit of 100K (free tier).\\nFleet size: ' + total + ' hosts.');
       });
 
       // Manual refresh button
