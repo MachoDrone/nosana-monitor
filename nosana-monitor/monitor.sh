@@ -387,7 +387,7 @@ while true; do
 
       # Queue position: find our node in any market's queue on-chain
       # MarketAccount layout: queue Vec<Pubkey> starts at offset 147
-      _q_info=$(curl -sf --max-time 10 -X POST "$SOLANA_RPC" \
+      _q_info=$(curl -sf --max-time 30 -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":10224}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
@@ -417,9 +417,13 @@ except:
       QUEUE_POS=$(echo "$_q_info" | cut -d' ' -f1)
       QUEUE_TOTAL=$(echo "$_q_info" | cut -d' ' -f2)
       _found_market=$(echo "$_q_info" | cut -d' ' -f3)
+      if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') QUEUE - ${QUEUE_POS}/${QUEUE_TOTAL}"
+      fi
       if [ -n "$_found_market" ] && [ "$_found_market" != "$MARKET_ADDRESS" ]; then
         MARKET_ADDRESS="$_found_market"
         LAST_MARKET_FETCH=0  # force slug refresh on next specs check
+        echo "$(date '+%Y-%m-%d %H:%M:%S') MARKET-CHANGE - ${_found_market}"
       fi
     fi
 
