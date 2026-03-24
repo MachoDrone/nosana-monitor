@@ -439,12 +439,6 @@ async function handleDashboardGet(token, env) {
     </div>
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
-    <div id="installHint" style="display:none" class="hint">
-      <b>Install App</b> adds a desktop/home screen shortcut that opens in its own window.<br>
-      \u{2705} Chrome, Edge (Windows, macOS, Linux, Android)<br>
-      \u{26A0}\u{FE0F} iOS Safari: use Share \u{2192} "Add to Home Screen" instead<br>
-      \u{274C} Firefox, Brave, Safari macOS: not supported
-    </div>
   </div>
 
   <script>
@@ -846,21 +840,19 @@ async function handleDashboardGet(token, env) {
       e.preventDefault();
       deferredPrompt = e;
       installBtn.style.display = '';
-      document.getElementById('installHint').style.display = '';
     });
     installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) return;
+      alert('How to Use\\n\\nInstall App adds a desktop/home screen shortcut that opens in its own window.\\n\\n\\u2705 Chrome, Edge (Windows, macOS, Linux, Android)\\n\\u26A0\\uFE0F iOS Safari: use Share \\u2192 "Add to Home Screen" instead\\n\\u274C Firefox, Brave, Safari macOS: not supported');
       deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
       if (result.outcome === 'accepted') {
         installBtn.style.display = 'none';
-        document.getElementById('installHint').style.display = 'none';
       }
       deferredPrompt = null;
     });
     window.addEventListener('appinstalled', () => {
       installBtn.style.display = 'none';
-      document.getElementById('installHint').style.display = 'none';
     });
 
     /* ---- Cache + controlled refresh ---- */
