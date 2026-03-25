@@ -221,8 +221,9 @@ async function handleDashboardGet(token, env) {
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
-  const totalHosts = hosts.length;
-  const completeHosts = hosts.filter(([, h]) => h.tier && h.dl && h.ping).length;
+  const activeHosts = hosts.filter(([, h]) => Number(h.n) === 1 && (now - h.seen <= STALE_THRESHOLD_MS));
+  const totalHosts = activeHosts.length || hosts.length;
+  const completeHosts = activeHosts.filter(([, h]) => h.tier && h.dl && h.ping).length;
 
   const now = Date.now();
 
