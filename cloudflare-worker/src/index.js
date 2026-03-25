@@ -365,7 +365,7 @@ async function handleDashboardGet(token, env) {
     .legend{font-size:11px;color:#888;margin-bottom:12px}
     table{width:100%;border-collapse:collapse}
     .col-status{width:20px}
-    th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;width:1%;white-space:nowrap}
+    th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;white-space:nowrap}
     tbody tr:nth-child(even){background:#171717}
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
