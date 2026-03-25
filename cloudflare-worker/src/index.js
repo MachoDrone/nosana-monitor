@@ -342,7 +342,6 @@ async function handleDashboardGet(token, env) {
   <title>Nosana Fleet</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    html,body{overscroll-behavior-y:contain}
     #gatherFill.breathe{background:#001900}
     @media(max-width:600px){#gatherFill.breathe{background:#151515}}
     @keyframes barBreathe{0%{width:0%}50%{width:100%}100%{width:0%}}
@@ -398,8 +397,7 @@ async function handleDashboardGet(token, env) {
   <div style="display:flex;justify-content:space-between;align-items:center">
     <h1>Nosana Fleet <span style="font-size:13px;color:#15803d;font-weight:400">— ${hosts.length}</span></h1>
     <span style="font-size:14px">
-      <span id="refreshBtn" style="cursor:pointer" title="Refresh dashboard">\u{1F504}</span>
-      <span id="purgeBtn" style="cursor:pointer;margin-left:8px" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
+      <span id="purgeBtn" style="cursor:pointer" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
     </span>
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
@@ -907,7 +905,6 @@ async function handleDashboardGet(token, env) {
       const modeSelect = document.getElementById('modeSelect');
       const fastStatus = document.getElementById('fastStatus');
       const fastInfo = document.getElementById('fastInfo');
-      const refreshBtn = document.getElementById('refreshBtn');
 
       // Restore mode from localStorage
       const savedFast = localStorage.getItem('nosana-fast-expiry');
@@ -979,19 +976,6 @@ async function handleDashboardGet(token, env) {
         alert('Kiosk mode (default):\\nRefreshes every ' + kioskInterval + 's. Low API usage, safe for always-on displays.\\n\\nFast mode:\\nRefreshes every ' + fastInterval + 's for active monitoring. Auto-reverts to kiosk after the chosen timeout.\\n\\nBoth modes pause when the tab is in the background.\\nEach refresh counts toward a daily limit of 100K (free tier).\\nFleet size: ' + total + ' hosts.');
       });
 
-      // Manual refresh button
-      if (refreshBtn) refreshBtn.addEventListener('click', () => {
-        location.reload();
-      });
-
-      // Intercept F5 / Ctrl+R — just reload (auto-refresh handles pacing)
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
-          if (e.shiftKey) return;
-          e.preventDefault();
-          location.reload();
-        }
-      });
 
       // Start breathing bar animation
       function startBarAnimation() {
