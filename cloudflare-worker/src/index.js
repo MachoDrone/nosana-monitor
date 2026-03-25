@@ -228,8 +228,8 @@ async function handleDashboardGet(token, env) {
 
   function indicator(val, seen, stateSince) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    const since = fmtSince(stateSince);
-    if (stale) return tap('STALE' + since, dot('#888'));
+    const since = fmtSince(stateSince || seen);
+    if (stale) return tap('STALE — last seen' + fmtSince(seen), dot('#888'));
     if (Number(val) === 0) return tap('DOWN' + since, dot('#ef4444'));
     return tap('UP' + since, dot('#22c55e'));
   }
@@ -248,11 +248,14 @@ async function handleDashboardGet(token, env) {
   function fmtSince(ts) {
     if (!ts || ts === 0) return '';
     const d = new Date(Number(ts));
+    const today = new Date(now);
     const h = d.getHours();
     const m = d.getMinutes().toString().padStart(2, '0');
     const ampm = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 || 12;
-    return ' since ' + h12 + ':' + m + ' ' + ampm;
+    const time = h12 + ':' + m + ' ' + ampm;
+    const sameDay = d.toDateString() === today.toDateString();
+    return ' since ' + (sameDay ? time : (d.getMonth()+1) + '/' + d.getDate() + ' ' + time);
   }
 
   function stateIndicator(s, stateSince) {
