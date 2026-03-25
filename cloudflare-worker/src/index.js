@@ -224,19 +224,15 @@ async function handleDashboardGet(token, env) {
 
   const now = Date.now();
 
-  function tap(label, content) {
-    return '<span class="tap" data-label="' + label + '">' + content + '</span>';
+  function tap(label, content, extraAttrs) {
+    return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
   }
 
   function indicator(val, seen, nodeUptime, containerStoppedAt) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return tap('Host unreachable — last seen' + fmtSinceEpoch(seen), dot('#888'));
-    if (Number(val) === 0) {
-      const stopLabel = containerStoppedAt ? fmtSinceISO(containerStoppedAt) : fmtSinceEpoch(seen);
-      return tap('Node stopped' + stopLabel, dot('#ef4444'));
-    }
-    const uptimeLabel = nodeUptime ? fmtSinceISO(nodeUptime) : '';
-    return tap('UP' + uptimeLabel, dot('#22c55e'));
+    if (stale) return tap('Host unreachable', dot('#888'), tsAttr(seen));
+    if (Number(val) === 0) return tap('Node stopped', dot('#ef4444'), containerStoppedAt ? tsAttr(0, containerStoppedAt) : tsAttr(seen));
+    return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
 
   function tierIndicator(t) {
@@ -250,22 +246,19 @@ async function handleDashboardGet(token, env) {
 
   const dot = (color) => '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + '"></span>';
 
-  function fmtSinceEpoch(ts) {
-    if (!ts || ts === 0) return '';
-    return ' since <span class="local-time" data-ts="' + ts + '"></span>';
-  }
-  function fmtSinceISO(iso) {
-    if (!iso) return '';
-    return ' since <span class="local-time" data-iso="' + iso + '"></span>';
+  function tsAttr(ts, iso) {
+    if (iso) return ' data-since-iso="' + iso + '"';
+    if (ts && ts !== 0) return ' data-since-ts="' + ts + '"';
+    return '';
   }
 
   function stateIndicator(s, stateSince) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
-    const since = stateSince ? fmtSinceEpoch(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING' + since, dot('#3b82f6'));
-    if (st === 'QUEUED') return tap('QUEUED' + since, '<span style="color:#4ade80;font-weight:600">Q</span>');
-    if (st === 'RESTARTING') return tap('RESTARTING' + since, dot('#f97316'));
+    const sa = stateSince ? tsAttr(Number(stateSince)) : '';
+    if (st === 'RUNNING') return tap('RUNNING', dot('#3b82f6'), sa);
+    if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">Q</span>', sa);
+    if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
 
@@ -457,17 +450,12 @@ async function handleDashboardGet(token, env) {
   </div>
 
   <script>
-    // Convert all timestamps to browser local time
-    document.querySelectorAll('.local-time').forEach(el => {
-      let d;
-      if (el.dataset.ts) d = new Date(Number(el.dataset.ts));
-      else if (el.dataset.iso) d = new Date(el.dataset.iso);
-      if (!d || isNaN(d)) return;
+    // Format timestamps in local timezone for tooltips
+    function fmtLocal(d) {
       const h = d.getHours(), m = d.getMinutes().toString().padStart(2,'0');
       const ampm = h >= 12 ? 'PM' : 'AM';
-      const h12 = h % 12 || 12;
-      el.textContent = (d.getMonth()+1) + '/' + d.getDate() + ' ' + h12 + ':' + m + ' ' + ampm;
-    });
+      return (d.getMonth()+1) + '/' + d.getDate() + ' ' + (h % 12 || 12) + ':' + m + ' ' + ampm;
+    }
 
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
@@ -555,7 +543,12 @@ async function handleDashboardGet(token, env) {
       document.querySelectorAll('.tip').forEach(t => t.remove());
       tip = document.createElement('span');
       tip.className = 'tip show';
-      tip.textContent = tap.dataset.label;
+      let label = tap.dataset.label;
+      const tsVal = tap.dataset.sinceTs;
+      const isoVal = tap.dataset.sinceIso;
+      if (tsVal) { const d = new Date(Number(tsVal)); if (!isNaN(d)) label += ' since ' + fmtLocal(d); }
+      else if (isoVal) { const d = new Date(isoVal); if (!isNaN(d)) label += ' since ' + fmtLocal(d); }
+      tip.textContent = label;
       tap.appendChild(tip);
       setTimeout(() => { if (tip.parentNode) tip.remove(); }, 1500);
     });
