@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.3
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.4
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -132,7 +132,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read current KV data
@@ -174,6 +174,7 @@ async function handleStatusPost(token, request, env) {
     sol: sol || (prev && prev.sol) || '',
     nos: nos || (prev && prev.nos) || '',
     stakedNos: stakedNos || (prev && prev.stakedNos) || '',
+    minStake: minStake || (prev && prev.minStake) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -392,7 +393,7 @@ async function handleDashboardGet(token, env) {
         <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
         <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
         <td class="nos">${h.nos ? Math.round(Number(h.nos)) : '-'}</td>
-        <td class="stakedNos">${h.stakedNos ? Math.round(Number(h.stakedNos)).toLocaleString() : '-'}</td>
+        <td class="stakedNos">${h.stakedNos !== undefined && h.stakedNos !== '' ? Math.round(Number(h.stakedNos)) + ' / ' + (h.minStake ? Math.round(Number(h.minStake)) : '0') : '-'}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
