@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.4
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.5
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -426,7 +426,7 @@ async function handleDashboardGet(token, env) {
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
     .legend{font-size:11px;color:#888;margin-bottom:12px}
-    table{width:100%;border-collapse:collapse}
+    table{border-collapse:collapse}
     th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;white-space:nowrap}
     tbody tr:nth-child(even){background:#171717}
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
@@ -436,7 +436,6 @@ async function handleDashboardGet(token, env) {
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
     td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px}
-    th,td{width:1%}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
     td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
