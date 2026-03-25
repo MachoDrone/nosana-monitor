@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 account_id = "506660d336361d19f7e4f0fdb3e402e8"
 
 [triggers]
-crons = ["*/1 * * * *"]
+crons = ["*/2 * * * *"]
 
 [[kv_namespaces]]
 binding = "FLEET_DATA"
