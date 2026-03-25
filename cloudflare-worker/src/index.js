@@ -235,7 +235,7 @@ async function handleDashboardGet(token, env) {
   function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox, downLabel) {
     const stale = now - seen > STALE_THRESHOLD_MS;
     const lbl = downLabel || 'nosana-node';
-    if (stale) return tap('Host unreachable — last seen', '\u{1F6A8}', tsAttr(seen));
+    if (stale) return tap('Host unreachable — last seen', '<span style="font-size:20px">\u{1F6A8}</span>', tsAttr(seen));
     if (Number(val) === 0) {
       if (containerStoppedAt) return tap(downApprox ? lbl + ' STOPPED at unknown time prior to' : lbl + ' STOPPED', redX, tsAttr(0, containerStoppedAt));
       return tap(lbl + ' STOPPED', redX);
@@ -313,7 +313,7 @@ async function handleDashboardGet(token, env) {
       ? Math.floor(downSecs / 60) + 'm'
       : Math.floor(downSecs / 3600) + 'h ' + Math.floor((downSecs % 3600) / 60) + 'm';
     const monitorHB = seenAgo(h.seen);
-    return tap('Monitor heartbeat OK — ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
+    return tap('Monitor Heartbeat ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
   }
 
   const rows = hosts
