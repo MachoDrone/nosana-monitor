@@ -501,7 +501,10 @@ while true; do
 
   # Queue position: check every 2min when QUEUED (independent of STATUS_INTERVAL)
   # Rate limit math: 200 hosts × 720 checks/day = 144k RPC calls/day (public RPC allows millions)
-  if [ -n "$HEALTH_RESPONSE" ] && [ "$CURRENT_STATE" = "QUEUED" ] && [ $(( NOW - LAST_QUEUE_CHECK )) -ge "$QUEUE_CHECK_INTERVAL" ]; then
+  # Use LAST_DASH_STATE which contains the Solana-derived state (CURRENT_STATE is from /health which says "OTHER")
+  _is_queued="false"
+  case "$LAST_DASHBOARD_STATE" in *:QUEUED) _is_queued="true" ;; esac
+  if [ -n "$HEALTH_RESPONSE" ] && [ "$_is_queued" = "true" ] && [ $(( NOW - LAST_QUEUE_CHECK )) -ge "$QUEUE_CHECK_INTERVAL" ]; then
     check_queue_position
   fi
 
