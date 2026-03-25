@@ -225,7 +225,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\"}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1 || true
 }
 
 # Startup message
@@ -362,6 +362,7 @@ while true; do
       STATE_SINCE=$NOW
       STUCK_ALERT_SENT=false
     fi
+    if [ -z "$LAST_STATE" ]; then STATE_SINCE=$NOW; fi
     LAST_STATE="$CURRENT_STATE"
 
     # Stuck in RESTARTING detection
@@ -574,6 +575,7 @@ print(b''.join(reversed(o)).decode())
       fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_uptime=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uptime',''))" 2>/dev/null || echo "")
+      _dash_stopped=""
       _dash_dl="${SPECS_AVG_DL:-}"
       _dash_ul="${SPECS_AVG_UL:-}"
       _dash_ping="${SPECS_AVG_PING:-}"
@@ -597,6 +599,15 @@ print(b''.join(reversed(o)).decode())
       _dash_gpuid=""
       _dash_jobstart="0"
       _dash_jobtimeout="0"
+      _dash_uptime=""
+      # Try to get nosana-node container stop time
+      _dash_stopped=$(docker exec podman podman inspect nosana-node --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
+    fi
+    # Convert STATE_SINCE to ms for dashboard
+    if [ -n "$STATE_SINCE" ] && [ "$STATE_SINCE" -gt 0 ] 2>/dev/null; then
+      STATE_SINCE_MS=$(( STATE_SINCE * 1000 ))
+    else
+      STATE_SINCE_MS=0
     fi
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
