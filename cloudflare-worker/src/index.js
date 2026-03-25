@@ -429,7 +429,7 @@ async function handleDashboardGet(token, env) {
     <thead>
       <tr>
         <th data-col="host" data-type="string"><div>PC</div></th>
-        <th data-col="node" data-type="string"><div>Host Address</div></th>
+        <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3">Host<br>Address</div></th>
         <th data-col="tier" data-type="string"><div>Status</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
