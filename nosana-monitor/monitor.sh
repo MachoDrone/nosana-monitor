@@ -664,7 +664,7 @@ print(b''.join(reversed(o)).decode())
     else
       STATE_SINCE_MS=0
     fi
-    _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
+    _dash_combined="${_dash_n}:${_dash_q}/${QUEUE_TOTAL:-0}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
       dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
       if [ "$DASHBOARD_PUSH_OK" = "1" ]; then
