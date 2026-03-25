@@ -787,7 +787,7 @@ async function handleDashboardGet(token, env) {
     }
 
     pushBtn.addEventListener('click', () => {
-      if (pushBtn.!classList.contains('active')) disableAlerts();
+      if (!pushBtn.classList.contains('active')) disableAlerts();
       else enableAlerts();
     });
 
