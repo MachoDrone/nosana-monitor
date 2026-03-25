@@ -44,6 +44,7 @@ while true; do
         --restart unless-stopped \
         -v /home/md/.nosana:/root/.nosana:ro \
         -v nosana-monitor-state:/state \
+        -v /var/run/docker.sock:/var/run/docker.sock \
         "${IMAGE_NAME}:latest" $CURRENT_ARGS
       echo "$(date '+%Y-%m-%d %H:%M:%S') Monitor updated and restarted"
     else
