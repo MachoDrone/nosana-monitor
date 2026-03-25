@@ -231,7 +231,7 @@ async function handleDashboardGet(token, env) {
   function indicator(val, seen, nodeUptime, containerStoppedAt) {
     const stale = now - seen > STALE_THRESHOLD_MS;
     if (stale) return tap('Host unreachable', dot('#888'), tsAttr(seen));
-    if (Number(val) === 0) return tap('Node stopped', dot('#ef4444'), containerStoppedAt ? tsAttr(0, containerStoppedAt) : tsAttr(seen));
+    if (Number(val) === 0) return tap('Node stopped', dot('#ef4444'), containerStoppedAt ? tsAttr(0, containerStoppedAt) : '');
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
 
