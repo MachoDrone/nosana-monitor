@@ -320,8 +320,6 @@ async function handleDashboardGet(token, env) {
   <title>Nosana Fleet</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{opacity:0;transition:opacity 0.1s}
-    body.ready{opacity:1}
     html,body{overscroll-behavior-y:contain}
     #gatherFill.breathe{background:#001700}
     @media(max-width:600px){#gatherFill.breathe{background:#151515}}
@@ -350,11 +348,11 @@ async function handleDashboardGet(token, env) {
     td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur{font-size:11px;color:#888}
     .actions{margin:16px 0}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
-    button{background:#16a34a;color:#fff;border:none;padding:8px 14px;
+    button{background:#111;color:#15803d;border:1px solid #15803d;padding:8px 14px;
            border-radius:6px;font-size:12px;cursor:pointer}
-    button:hover{background:#15803d}
-    button.on{background:#111;color:#15803d;border:1px solid #15803d}
-    button.on:hover{background:#1a1a1a}
+    button:hover{background:#1a1a1a}
+    button.active{background:#16a34a;color:#fff;border:1px solid #16a34a}
+    button.active:hover{background:#15803d}
     .status-msg{font-size:12px;color:#888;margin-top:4px}
     .hint{font-size:11px;color:#f59e0b;margin-top:8px;line-height:1.5}
     .hint a{color:#60a5fa}
@@ -435,16 +433,15 @@ async function handleDashboardGet(token, env) {
         <option value="30">Fast 30 min</option>
       </select>
       <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888;margin-right:16px" title="Info">\u{24D8}</span>
-      <button id="pushBtn">Enable Push</button>
-      <button id="soundBtn">Enable Sound</button>
-      <button id="installBtn" class="on" style="display:none">Install App</button>
+      <button id="pushBtn" class="active">Enable Push</button>
+      <button id="soundBtn" class="active">Enable Sound</button>
+      <button id="installBtn" style="display:none">Install App</button>
     </div>
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
   </div>
 
   <script>
-    document.body.classList.add('ready');
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
 
@@ -702,11 +699,11 @@ async function handleDashboardGet(token, env) {
 
     function setPushEnabled() {
       pushBtn.textContent = 'Disable Push';
-      pushBtn.classList.add('on');
+      pushBtn.classList.remove('active');
     }
     function setPushDisabled() {
       pushBtn.textContent = 'Enable Push';
-      pushBtn.classList.remove('on');
+      pushBtn.classList.add('active');
     }
 
     async function enableAlerts() {
@@ -790,7 +787,7 @@ async function handleDashboardGet(token, env) {
     }
 
     pushBtn.addEventListener('click', () => {
-      if (pushBtn.classList.contains('on')) disableAlerts();
+      if (pushBtn.!classList.contains('active')) disableAlerts();
       else enableAlerts();
     });
 
@@ -799,13 +796,13 @@ async function handleDashboardGet(token, env) {
 
     function setSoundEnabled() {
       soundBtn.textContent = 'Disable Sound';
-      soundBtn.classList.add('on');
+      soundBtn.classList.remove('active');
       pageSoundEnabled = true;
       localStorage.setItem('nosana-page-sound', 'on');
     }
     function setSoundDisabled() {
       soundBtn.textContent = 'Enable Sound';
-      soundBtn.classList.remove('on');
+      soundBtn.classList.add('active');
       pageSoundEnabled = false;
       localStorage.setItem('nosana-page-sound', 'off');
     }
