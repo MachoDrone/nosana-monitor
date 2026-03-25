@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.1
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -604,18 +604,18 @@ async function handleDashboardGet(token, env) {
       function resetSort() {
         currentSort = 'host';
         sortDir = 1;
-        addArrow(headers[0], sortDir);
+        addArrow(headers[1], sortDir);
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => (a.children[0] ? a.children[0].textContent.trim() : '').localeCompare(b.children[0] ? b.children[0].textContent.trim() : ''));
+        rows.sort((a, b) => (a.children[1] ? a.children[1].textContent.trim() : '').localeCompare(b.children[1] ? b.children[1].textContent.trim() : ''));
         rows.forEach(r => tbody.appendChild(r));
       }
 
       const resetBtn = document.getElementById('sortReset');
       if (resetBtn) resetBtn.addEventListener('click', resetSort);
 
-      // Show default sort arrow on load
-      addArrow(headers[0], 1);
+      // Show default sort arrow on PC column (index 1)
+      addArrow(headers[1], 1);
 
       headers.forEach((th, idx) => {
         th.addEventListener('click', () => {
