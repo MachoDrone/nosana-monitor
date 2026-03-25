@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.1
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.2
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -132,7 +132,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read current KV data
@@ -171,6 +171,9 @@ async function handleStatusPost(token, request, env) {
     downLabel: downLabel || 'Node',
     stateSince: stateSince || (prev && prev.stateSince) || 0,
     monitorVersion: monitorVersion || (prev && prev.monitorVersion) || '',
+    sol: sol || (prev && prev.sol) || '',
+    nos: nos || (prev && prev.nos) || '',
+    stakedNos: stakedNos || (prev && prev.stakedNos) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -378,6 +381,7 @@ async function handleDashboardGet(token, env) {
         <td style="padding:0">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
+        <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
         <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
@@ -387,6 +391,8 @@ async function handleDashboardGet(token, env) {
         <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
         <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
         <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
+        <td class="nos">${h.nos ? Math.round(Number(h.nos)) : '-'}</td>
+        <td class="stakedNos">${h.stakedNos ? Math.round(Number(h.stakedNos)).toLocaleString() : '-'}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
@@ -431,7 +437,7 @@ async function handleDashboardGet(token, env) {
     td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
     td.rewards a:hover{text-decoration:underline}
     td.q{font-size:12px;color:#ccc}
-    td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur{font-size:11px;color:#888}
+    td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur,td.sol,td.nos,td.stakedNos{font-size:11px;color:#888}
     .actions{margin:16px 0}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
     button{background:#111;color:#15803d;border:1px solid #15803d;padding:8px 14px;
@@ -488,6 +494,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="tier" data-type="string" style="padding:0"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
+        <th data-col="sol" data-type="num"><div>SOL</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
@@ -497,6 +504,8 @@ async function handleDashboardGet(token, env) {
         <th data-col="dl" data-type="num"><div>DL</div></th>
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
+        <th data-col="nos" data-type="num"><div>NOS</div></th>
+        <th data-col="stakedNos" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Staked<br>NOS</div></th>
         <th data-col="rewards" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Rewards<br>to claim</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.03.9"
+VERSION="0.04.1"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -221,11 +221,11 @@ rpc_curl() {
 # Dashboard push: send host status to Cloudflare Worker
 dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
-  _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"
+  _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"; _sol="${17}"; _nos="${18}"; _staked="${19}"
   _host="${HOST_NAME:-$(hostname)}"
   if curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\"}" >/dev/null 2>&1; then
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\"}" >/dev/null 2>&1; then
     DASHBOARD_PUSH_OK=1
   else
     DASHBOARD_PUSH_OK=0
@@ -469,6 +469,37 @@ while true; do
       LAST_STATUS_CHECK=$NOW
 
       check_queue_position
+
+      # Fetch SOL balance, NOS balance, and staked NOS (every STATUS_INTERVAL)
+      # Rate limit: 200 hosts × 3 calls × 48/day = 28,800 RPC calls (safe for public RPC)
+      BALANCE_SOL=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"${PUBKEY}\"]}" 2>/dev/null | python3 -c "import sys,json; r=json.load(sys.stdin); print(f'{r[\"result\"][\"value\"]/1e9:.4f}')" 2>/dev/null || echo "")
+
+      BALANCE_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTokenAccountsByOwner\",\"params\":[\"${PUBKEY}\",{\"mint\":\"nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7\"},{\"encoding\":\"jsonParsed\"}]}" 2>/dev/null | python3 -c "
+import sys,json
+r=json.load(sys.stdin)
+v=r.get('result',{}).get('value',[])
+print(f'{v[0][\"account\"][\"data\"][\"parsed\"][\"info\"][\"tokenAmount\"][\"uiAmount\"]:.2f}' if v else '0')
+" 2>/dev/null || echo "")
+
+      STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":104,\"length\":8}}]}" 2>/dev/null | python3 -c "
+import sys,json,base64,struct
+r=json.load(sys.stdin)
+accts=r.get('result',[])
+if accts:
+    data=base64.b64decode(accts[0]['account']['data'][0])
+    val=struct.unpack_from('<Q',data,0)[0]
+    print(f'{val/1e6:.2f}')
+else:
+    print('0')
+" 2>/dev/null || echo "")
+
+      echo "$(date '+%Y-%m-%d %H:%M:%S') BALANCES - SOL:${BALANCE_SOL} NOS:${BALANCE_NOS} Staked:${STAKED_NOS}"
     fi
 
     # Startup heartbeat or hourly heartbeat with node info
@@ -666,13 +697,13 @@ print(b''.join(reversed(o)).decode())
     fi
     _dash_combined="${_dash_n}:${_dash_q}/${QUEUE_TOTAL:-0}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}"
       if [ "$DASHBOARD_PUSH_OK" = "1" ]; then
         LAST_DASHBOARD_PUSH=$NOW
         LAST_DASHBOARD_STATE="$_dash_combined"
       fi
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}"
       if [ "$DASHBOARD_PUSH_OK" = "1" ]; then LAST_DASHBOARD_PUSH=$NOW; fi
     fi
   fi
