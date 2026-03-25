@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.02.0"
+VERSION="0.02.7"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -223,9 +223,13 @@ dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
   _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"
   _host="${HOST_NAME:-$(hostname)}"
-  curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
+  if curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1; then
+    DASHBOARD_PUSH_OK=1
+  else
+    DASHBOARD_PUSH_OK=0
+  fi
 }
 
 # Startup message
@@ -647,11 +651,13 @@ print(b''.join(reversed(o)).decode())
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
       dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
-      LAST_DASHBOARD_PUSH=$NOW
-      LAST_DASHBOARD_STATE="$_dash_combined"
+      if [ "$DASHBOARD_PUSH_OK" = "1" ]; then
+        LAST_DASHBOARD_PUSH=$NOW
+        LAST_DASHBOARD_STATE="$_dash_combined"
+      fi
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
       dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}"
-      LAST_DASHBOARD_PUSH=$NOW
+      if [ "$DASHBOARD_PUSH_OK" = "1" ]; then LAST_DASHBOARD_PUSH=$NOW; fi
     fi
   fi
 
