@@ -228,8 +228,8 @@ async function handleDashboardGet(token, env) {
 
   function indicator(val, seen, nodeUptime) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return tap('STALE — last seen' + fmtSince(seen), dot('#888'));
-    if (Number(val) === 0) return tap('DOWN — last seen' + fmtSince(seen), dot('#ef4444'));
+    if (stale) return tap('STALE' + fmtSince(seen), dot('#888'));
+    if (Number(val) === 0) return tap('DOWN' + fmtSince(seen), dot('#ef4444'));
     const uptimeSince = nodeUptime ? fmtSince(new Date(nodeUptime).getTime()) : '';
     return tap('UP' + uptimeSince, dot('#22c55e'));
   }
