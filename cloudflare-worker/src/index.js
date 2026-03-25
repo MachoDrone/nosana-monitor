@@ -60,9 +60,9 @@ function classifyAlert({ n, stale = false, recovery = false }) {
  * Build a title string for the given alert level.
  */
 function alertTitle(level) {
-  if (level === 'critical') return '\u{1F6A8} CRITICAL';
-  if (level === 'warning') return '\u{26A0}\u{FE0F} WARNING';
-  return '\u{2705} Recovered';
+  if (level === 'critical') return 'CRITICAL';
+  if (level === 'warning') return 'WARNING';
+  return 'Recovered';
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,7 +184,7 @@ async function handleStatusPost(token, request, env) {
     const level = 'info';
     const payload = JSON.stringify({
       title: alertTitle(level),
-      body: `\u{1F7E2} ${host}: all checks passed — recovered`,
+      body: `${host} recovered`,
       level,
       url: `/d/${token}`,
     });
@@ -193,14 +193,11 @@ async function handleStatusPost(token, request, env) {
 
   // --- Down alert ---
   if (isDown) {
-    const parts = [];
-    if (Number(n) === 0) parts.push('node DOWN');
-
+    const lbl = downLabel || 'nosana-node';
     const level = classifyAlert({ n });
-    const icon = level === 'critical' ? '\u{1F534}' : '\u{1F7E1}';
     const payload = JSON.stringify({
       title: alertTitle(level),
-      body: `${icon} ${host}: ${parts.join(', ')}`,
+      body: `${lbl} STOPPED on ${host}`,
       level,
       url: `/d/${token}`,
     });
@@ -1337,7 +1334,7 @@ async function handleScheduled(env) {
         const level = classifyAlert({ n: host.n, stale: true });
         const payload = JSON.stringify({
           title: alertTitle(level),
-          body: `\u{2753} ${hostName}: OFFLINE (no data for 30m)`,
+          body: `Host unreachable — ${hostName} (no data for 15m)`,
           level,
           url: `/d/${token}`,
         });
