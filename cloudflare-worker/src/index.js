@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.6
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.7
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -320,10 +320,16 @@ async function handleDashboardGet(token, env) {
   function seenCell(h) {
     const isHostDown = isDown(h.n, h.seen);
     const full = isHostDown ? downtime(h) : seenAgo(h.seen);
-    const hbText = seenAgo(h.seen);
-    const compact = isHostDown
-      ? tap('Monitor HB: ' + hbText, redX)
-      : tap('Monitor HB: ' + hbText, dot('#22c55e'));
+    let compact;
+    if (isHostDown) {
+      let downSecs = 0;
+      if (h.containerStoppedAt) downSecs = Math.round((now - new Date(h.containerStoppedAt).getTime()) / 1000);
+      if (downSecs <= 0) downSecs = Math.round((now - h.seen) / 1000);
+      const dur = downSecs < 3600 ? Math.floor(downSecs / 60) + 'm' : Math.floor(downSecs / 3600) + 'h ' + Math.floor((downSecs % 3600) / 60) + 'm';
+      compact = tap('Monitor HB: ' + dur, redX);
+    } else {
+      compact = tap('Monitor HB: ' + seenAgo(h.seen), dot('#22c55e'));
+    }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
 
@@ -382,7 +388,7 @@ async function handleDashboardGet(token, env) {
     th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
-    td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px}
+    td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px;width:1px}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
     td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
