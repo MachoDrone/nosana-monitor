@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.04.1"
+VERSION="0.04.2"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -485,19 +485,46 @@ v=r.get('result',{}).get('value',[])
 print(f'{v[0][\"account\"][\"data\"][\"parsed\"][\"info\"][\"tokenAmount\"][\"uiAmount\"]:.2f}' if v else '0')
 " 2>/dev/null || echo "")
 
-      STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+      # Staked NOS: check the Nosana staking program for this node's authority
+      _auth=$(rpc_curl -s -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":104,\"length\":8}}]}" 2>/dev/null | python3 -c "
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null | python3 -c "
+import sys,json,base64
+ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+def to_b58(pk):
+    n=int.from_bytes(pk,'big');o=[]
+    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
+    for x in pk:
+      if x==0:o.append(b'1')
+      else:break
+    return b''.join(reversed(o)).decode()
+r=json.load(sys.stdin)
+if r.get('result'):
+    data=base64.b64decode(r['result'][0]['account']['data'][0])
+    print(to_b58(data[0:32]))
+" 2>/dev/null || echo "")
+      STAKED_NOS="0"
+      if [ -n "$_auth" ]; then
+        STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosScmHY2uR24Vh751ctsLGdXA2kF7SyMjPjLEfPqRb\",{\"filters\":[{\"memcmp\":{\"offset\":8,\"bytes\":\"${_auth}\"}}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 r=json.load(sys.stdin)
 accts=r.get('result',[])
 if accts:
     data=base64.b64decode(accts[0]['account']['data'][0])
-    val=struct.unpack_from('<Q',data,0)[0]
-    print(f'{val/1e6:.2f}')
+    # Find the staked amount — scan for reasonable token values
+    for off in range(40, min(len(data)-7, 200), 8):
+        val=struct.unpack_from('<Q',data,off)[0]
+        if 0 < val < 1e15:
+            print(f'{val/1e6:.4f}')
+            break
+    else:
+        print('0')
 else:
     print('0')
-" 2>/dev/null || echo "")
+" 2>/dev/null || echo "0")
+      fi
 
       echo "$(date '+%Y-%m-%d %H:%M:%S') BALANCES - SOL:${BALANCE_SOL} NOS:${BALANCE_NOS} Staked:${STAKED_NOS}"
     fi
