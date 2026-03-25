@@ -429,9 +429,9 @@ async function handleDashboardGet(token, env) {
     <thead>
       <tr>
         <th data-col="host" data-type="string"><div>PC</div></th>
-        <th data-col="node" data-type="string"><div>Node</div></th>
+        <th data-col="node" data-type="string"><div>Host<br>Address</div></th>
         <th data-col="tier" data-type="string"><div>Status</div></th>
-        <th data-col="n" data-type="num"><div>Unknown</div></th>
+        <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
