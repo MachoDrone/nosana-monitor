@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.1
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.2
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -317,6 +317,15 @@ async function handleDashboardGet(token, env) {
     return tap('Monitor Heartbeat ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
   }
 
+  function seenCell(h) {
+    const isHostDown = isDown(h.n, h.seen);
+    const full = isHostDown ? downtime(h) : seenAgo(h.seen);
+    const hbText = seenAgo(h.seen);
+    const icon = isHostDown ? '\\u2716' : '\\u{1F7E2}';
+    const compact = tap('Monitor HB: ' + hbText, '<span style="' + (isHostDown ? 'color:#ef4444;font-weight:700;font-size:13px' : '') + '">' + icon + '</span>');
+    return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
+  }
+
   const rows = hosts
     .map(
       ([name, h]) => `
@@ -328,7 +337,7 @@ async function handleDashboardGet(token, env) {
         <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
-        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${isDown(h.n, h.seen) ? downtime(h) : seenAgo(h.seen)}</td>
+        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
         <td class="disk">${h.disk || '-'}</td>
@@ -371,7 +380,7 @@ async function handleDashboardGet(token, env) {
     th{height:80px;position:relative}
     th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:hover{color:#fff}
-    th .sort-arrow{font-size:8px;color:#4ade80}
+    th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
     td.host{text-align:left;font-weight:600;color:#fff}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
@@ -393,7 +402,10 @@ async function handleDashboardGet(token, env) {
     .dur-m-text{display:none}
     body.dur-text .dur-m-bar{display:none}
     body.dur-text .dur-m-text{display:inline}
-    .dur-toggle,.gpu-toggle{cursor:pointer;font-size:12px}
+    .dur-toggle,.gpu-toggle,.hb-toggle{cursor:pointer;font-size:12px}
+    .hb-m-compact{display:none}
+    body.hb-compact .hb-m-full{display:none}
+    body.hb-compact .hb-m-compact{display:inline}
     .gpu-m-dot{display:none}
     body.gpu-compact .gpu-m-full{display:none}
     body.gpu-compact .gpu-m-dot{display:inline}
@@ -435,7 +447,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="state" data-type="string"><div>State</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
-        <th data-col="seen" data-type="num"><div>Heartbeat</div></th>
+        <th data-col="seen" data-type="num"><div>Heartbeat <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="rewards" data-type="num"><div>Rewards</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
         <th data-col="disk" data-type="num"><div>Disk</div></th>
@@ -537,6 +549,19 @@ async function handleDashboardGet(token, env) {
       });
     })();
 
+    /* ---- Heartbeat toggle ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-hb-mode') || 'full';
+      if (mode === 'compact') document.body.classList.add('hb-compact');
+      const tog = document.getElementById('hbToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('hb-compact');
+        const cur = document.body.classList.contains('hb-compact') ? 'compact' : 'full';
+        localStorage.setItem('nosana-hb-mode', cur);
+      });
+    })();
+
     /* ---- Market slug click-to-refresh ---- */
     document.querySelectorAll('td.gpu .gpu-m-full').forEach(el => {
       el.style.cursor = 'pointer';
@@ -593,12 +618,26 @@ async function handleDashboardGet(token, env) {
 
       function addArrow(th, dir) {
         clearArrows();
-        const arrow = document.createElement('span');
-        arrow.className = 'sort-arrow';
-        arrow.textContent = dir === 1 ? ' \\u25C0' : ' \\u25B6';
+        const sym = dir === 1 ? ' \\u25C0' : ' \\u25B6';
         const div = th.querySelector('div');
-        if (div) div.insertBefore(arrow, div.firstChild);
-        else th.insertBefore(arrow, th.firstChild);
+        const target = div || th;
+        const br = target.querySelector('br');
+        if (br) {
+          // Multi-line header (e.g. Host<br>Address) — arrow before each line
+          const a1 = document.createElement('span');
+          a1.className = 'sort-arrow';
+          a1.textContent = sym;
+          target.insertBefore(a1, target.firstChild);
+          const a2 = document.createElement('span');
+          a2.className = 'sort-arrow';
+          a2.textContent = sym;
+          br.after(a2);
+        } else {
+          const arrow = document.createElement('span');
+          arrow.className = 'sort-arrow';
+          arrow.textContent = sym;
+          target.insertBefore(arrow, target.firstChild);
+        }
       }
 
       function resetSort() {
