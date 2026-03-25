@@ -62,7 +62,7 @@ function classifyAlert({ n, stale = false, recovery = false }) {
 function alertTitle(level) {
   if (level === 'critical') return 'CRITICAL';
   if (level === 'warning') return 'WARNING';
-  return 'Recovered';
+  return '\u{2705} Recovered';
 }
 
 /* ------------------------------------------------------------------ */
@@ -197,7 +197,7 @@ async function handleStatusPost(token, request, env) {
     const level = classifyAlert({ n });
     const payload = JSON.stringify({
       title: alertTitle(level),
-      body: `${lbl} STOPPED on ${host}`,
+      body: `\u{2716} ${lbl} STOPPED on ${host}`,
       level,
       url: `/d/${token}`,
     });
@@ -1334,7 +1334,7 @@ async function handleScheduled(env) {
         const level = classifyAlert({ n: host.n, stale: true });
         const payload = JSON.stringify({
           title: alertTitle(level),
-          body: `Host unreachable — ${hostName} (no data for 15m)`,
+          body: `\u{1F6A8} Host unreachable \u{2014} ${hostName} (no data for 15m)`,
           level,
           url: `/d/${token}`,
         });
