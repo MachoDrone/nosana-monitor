@@ -527,8 +527,7 @@ except:pass
           echo "$RUNNING_SINCE" > "$RUNNING_STATE_FILE" 2>/dev/null || true
         fi
         _dash_jobstart="$RUNNING_SINCE"
-        # Get timeout from JobAccount (Borsh layout: timeout at offset 225, 8 bytes LE)
-        if [ "$LAST_DASH_JOBTIMEOUT" = "0" ] || [ -z "$LAST_DASH_JOBTIMEOUT" ]; then
+        # Get timeout from JobAccount every check (deployer may extend mid-job)
           _job_addr=$(echo "$_rpc_resp" | python3 -c "
 import sys,json,base64
 r=json.load(sys.stdin)['result'][0]
@@ -547,9 +546,6 @@ print(b''.join(reversed(o)).decode())
               -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_job_addr}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":225,\"length\":8}}]}" 2>/dev/null || echo "")
             _dash_jobtimeout=$(echo "$_job_acct" | python3 -c "import sys,json,base64,struct; d=base64.b64decode(json.load(sys.stdin)['result']['value']['data'][0]); print(struct.unpack_from('<q',d,0)[0])" 2>/dev/null || echo "0")
           fi
-        else
-          _dash_jobtimeout="$LAST_DASH_JOBTIMEOUT"
-        fi
         LAST_DASH_STATE="RUNNING"
         LAST_DASH_JOBSTART="$_dash_jobstart"
         LAST_DASH_JOBTIMEOUT="${_dash_jobtimeout:-0}"
