@@ -557,6 +557,15 @@ print(b''.join(reversed(o)).decode())
           _dash_s="RESTARTING"
         else
           _dash_s="QUEUED"
+          # Get real queue entry time from blockchain (most recent tx = Work call)
+          if [ "$LAST_DASH_STATE" != "QUEUED" ] || [ "${STATE_SINCE:-0}" -eq 0 ] 2>/dev/null; then
+            _queue_time=$(rpc_curl -X POST "$SOLANA_RPC" \
+              -H "Content-Type: application/json" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getSignaturesForAddress\",\"params\":[\"${PUBKEY}\",{\"limit\":1}]}" 2>/dev/null | python3 -c "import sys,json; r=json.load(sys.stdin).get('result',[]); print(r[0].get('blockTime',0) if r else 0)" 2>/dev/null || echo "0")
+            if [ "${_queue_time:-0}" -gt 0 ] 2>/dev/null; then
+              STATE_SINCE="$_queue_time"
+            fi
+          fi
         fi
         _dash_jobstart="0"
         _dash_jobtimeout="0"
