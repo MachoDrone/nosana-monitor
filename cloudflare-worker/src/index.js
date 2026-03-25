@@ -13,7 +13,7 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 /*  Constants                                                         */
 /* ------------------------------------------------------------------ */
 
-const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
 
 /* ------------------------------------------------------------------ */
@@ -303,6 +303,19 @@ async function handleDashboardGet(token, env) {
     return `${Math.floor(diff / 3600)}h ago`;
   }
 
+  function downtime(h) {
+    let downSecs = 0;
+    if (h.containerStoppedAt) {
+      downSecs = Math.round((now - new Date(h.containerStoppedAt).getTime()) / 1000);
+    }
+    if (downSecs <= 0) downSecs = Math.round((now - h.seen) / 1000);
+    const dur = downSecs < 3600
+      ? Math.floor(downSecs / 60) + 'm'
+      : Math.floor(downSecs / 3600) + 'h ' + Math.floor((downSecs % 3600) / 60) + 'm';
+    const monitorHB = seenAgo(h.seen);
+    return tap('Monitor heartbeat OK — ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
+  }
+
   const rows = hosts
     .map(
       ([name, h]) => `
@@ -314,7 +327,7 @@ async function handleDashboardGet(token, env) {
         <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
-        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenAgo(h.seen)}</td>
+        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${isDown(h.n, h.seen) ? downtime(h) : seenAgo(h.seen)}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
         <td class="disk">${h.disk || '-'}</td>
