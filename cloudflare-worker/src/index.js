@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.1
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -365,7 +365,7 @@ async function handleDashboardGet(token, env) {
       const dur = (d ? d + 'd ' : '') + (hr ? hr + 'h ' : '') + mn + 'm';
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
-      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), dot('#22c55e'));
+      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), dot('#15803d'));
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
@@ -484,7 +484,7 @@ async function handleDashboardGet(token, env) {
       : `<table id="fleet">
     <thead>
       <tr>
-        <th data-col="seen" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Monitor<br>HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
+        <th data-col="seen" data-type="num"><div>Monitor HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="tier" data-type="string" style="padding:0"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
@@ -500,7 +500,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="rewards" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Rewards<br>to claim</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
-        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Ver</div></th>
+        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version</div></th>
       </tr>
     </thead>
     <tbody>
