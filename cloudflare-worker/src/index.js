@@ -221,11 +221,10 @@ async function handleDashboardGet(token, env) {
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
+  const now = Date.now();
   const activeHosts = hosts.filter(([, h]) => Number(h.n) === 1 && (now - h.seen <= STALE_THRESHOLD_MS));
   const totalHosts = activeHosts.length || hosts.length;
   const completeHosts = activeHosts.filter(([, h]) => h.tier && h.dl && h.ping).length;
-
-  const now = Date.now();
 
   function tap(label, content, extraAttrs) {
     return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
