@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.9
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -348,7 +348,7 @@ async function handleDashboardGet(token, env) {
       ? Math.floor(downSecs / 60) + 'm'
       : Math.floor(downSecs / 3600) + 'h ' + Math.floor((downSecs % 3600) / 60) + 'm';
     const monitorHB = seenAgo(h.seen);
-    return tap('Monitor Heartbeat ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
+    return tap('Nosana Fleet Mon Heartbeat: ' + monitorHB, '<span style="color:#ef4444;font-weight:700">' + dur + '</span>');
   }
 
   function seenCell(h) {
@@ -365,7 +365,7 @@ async function handleDashboardGet(token, env) {
       const dur = (d ? d + 'd ' : '') + (hr ? hr + 'h ' : '') + mn + 'm';
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
-      compact = tap('Monitor HB: ' + seenAgo(h.seen), dot('#22c55e'));
+      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), dot('#22c55e'));
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
@@ -374,6 +374,7 @@ async function handleDashboardGet(token, env) {
     .map(
       ([name, h]) => `
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
+        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
         <td style="padding:0">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
@@ -381,16 +382,15 @@ async function handleDashboardGet(token, env) {
         <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
-        <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
-        <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
         <td class="disk">${h.disk || '-'}</td>
-        <td class="ver">${h.version || '-'}</td>
         <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
         <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
         <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
+        <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
+        <td class="ver">${h.version || '-'}</td>
       </tr>`,
     )
     .join('\n');
@@ -484,6 +484,7 @@ async function handleDashboardGet(token, env) {
       : `<table id="fleet">
     <thead>
       <tr>
+        <th data-col="seen" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Monitor<br>HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="tier" data-type="string" style="padding:0"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
@@ -491,16 +492,15 @@ async function handleDashboardGet(token, env) {
         <th data-col="state" data-type="string"><div>State</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
-        <th data-col="seen" data-type="num"><div>Heartbeat <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
-        <th data-col="rewards" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Rewards<br>to claim</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
         <th data-col="disk" data-type="num"><div>Disk</div></th>
-        <th data-col="ver" data-type="string"><div>Ver</div></th>
         <th data-col="dl" data-type="num"><div>DL</div></th>
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
+        <th data-col="rewards" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Rewards<br>to claim</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
+        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Ver</div></th>
       </tr>
     </thead>
     <tbody>
@@ -693,10 +693,10 @@ async function handleDashboardGet(token, env) {
       function resetSort() {
         currentSort = 'host';
         sortDir = 1;
-        addArrow(headers[1], sortDir);
+        addArrow(headers[2], sortDir);
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => (a.children[1] ? a.children[1].textContent.trim() : '').localeCompare(b.children[1] ? b.children[1].textContent.trim() : ''));
+        rows.sort((a, b) => (a.children[2] ? a.children[2].textContent.trim() : '').localeCompare(b.children[2] ? b.children[2].textContent.trim() : ''));
         rows.forEach(r => tbody.appendChild(r));
       }
 
@@ -704,7 +704,7 @@ async function handleDashboardGet(token, env) {
       if (resetBtn) resetBtn.addEventListener('click', resetSort);
 
       // Show default sort arrow on PC column (index 1)
-      addArrow(headers[1], 1);
+      addArrow(headers[2], 1);
 
       headers.forEach((th, idx) => {
         th.addEventListener('click', () => {
