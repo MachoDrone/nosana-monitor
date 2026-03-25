@@ -351,8 +351,6 @@ async function handleDashboardGet(token, env) {
     button{background:#111;color:#15803d;border:1px solid #15803d;padding:8px 14px;
            border-radius:6px;font-size:12px;cursor:pointer}
     button:hover{background:#1a1a1a}
-    button.active{background:#16a34a;color:#fff;border:1px solid #16a34a}
-    button.active:hover{background:#15803d}
     .status-msg{font-size:12px;color:#888;margin-top:4px}
     .hint{font-size:11px;color:#f59e0b;margin-top:8px;line-height:1.5}
     .hint a{color:#60a5fa}
@@ -433,8 +431,8 @@ async function handleDashboardGet(token, env) {
         <option value="30">Fast 30 min</option>
       </select>
       <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888;margin-right:16px" title="Info">\u{24D8}</span>
-      <button id="pushBtn" class="active">Enable Push</button>
-      <button id="soundBtn" class="active">Enable Sound</button>
+      <button id="pushBtn">Enable Push</button>
+      <button id="soundBtn">Enable Sound</button>
       <button id="installBtn" style="display:none">Install App</button>
     </div>
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
@@ -699,11 +697,9 @@ async function handleDashboardGet(token, env) {
 
     function setPushEnabled() {
       pushBtn.textContent = 'Disable Push';
-      pushBtn.classList.remove('active');
     }
     function setPushDisabled() {
       pushBtn.textContent = 'Enable Push';
-      pushBtn.classList.add('active');
     }
 
     async function enableAlerts() {
@@ -787,7 +783,7 @@ async function handleDashboardGet(token, env) {
     }
 
     pushBtn.addEventListener('click', () => {
-      if (!pushBtn.classList.contains('active')) disableAlerts();
+      if (pushBtn.textContent === 'Disable Push') disableAlerts();
       else enableAlerts();
     });
 
@@ -796,13 +792,11 @@ async function handleDashboardGet(token, env) {
 
     function setSoundEnabled() {
       soundBtn.textContent = 'Disable Sound';
-      soundBtn.classList.remove('active');
       pageSoundEnabled = true;
       localStorage.setItem('nosana-page-sound', 'on');
     }
     function setSoundDisabled() {
       soundBtn.textContent = 'Enable Sound';
-      soundBtn.classList.add('active');
       pageSoundEnabled = false;
       localStorage.setItem('nosana-page-sound', 'off');
     }
