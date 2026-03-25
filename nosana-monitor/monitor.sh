@@ -270,12 +270,12 @@ FIRST_RUN=true
 FAIL_COUNT=0
 DOWN_SINCE=""
 LAST_DASHBOARD_PUSH=0
-LAST_DASHBOARD_STATE=""
+LAST_DASHBOARD_STATE="__FORCE_FIRST_PUSH__"
 LAST_DASH_STATE=""
 LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
 RUNNING_STATE_FILE="/state/running-since"
-RUNNING_SINCE=$(cat "$RUNNING_STATE_FILE" 2>/dev/null || echo "0")
+RUNNING_SINCE=0  # always re-fetch from blockchain on startup
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
@@ -492,6 +492,7 @@ except:pass
   if [ -n "$DASHBOARD_URL" ]; then
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
+      _dash_stopped=""
       if [ "${QUEUE_POS:-0}" -gt 0 ] 2>/dev/null; then
         _dash_q="${QUEUE_POS}"
       else
@@ -588,7 +589,6 @@ print(b''.join(reversed(o)).decode())
       fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_uptime=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uptime',''))" 2>/dev/null || echo "")
-      _dash_stopped=""
       _dash_dl="${SPECS_AVG_DL:-}"
       _dash_ul="${SPECS_AVG_UL:-}"
       _dash_ping="${SPECS_AVG_PING:-}"
@@ -613,7 +613,10 @@ print(b''.join(reversed(o)).decode())
       _dash_jobstart="0"
       _dash_jobtimeout="0"
       _dash_uptime=""
-      # Try to get nosana-node container stop time
+      _dash_stopped=""
+    fi
+    # If node is not running, try to get container stop time
+    if [ "$_dash_n" = "0" ] || ([ "$_dash_s" != "RUNNING" ] && [ -z "$_dash_s" ]); then
       _dash_stopped=$(docker exec podman podman inspect nosana-node --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
     fi
     # Convert STATE_SINCE to ms for dashboard
