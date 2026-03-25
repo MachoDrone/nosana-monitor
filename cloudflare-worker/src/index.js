@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.1
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -16,11 +16,31 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
 
-/* In-memory buffer: avoids KV writes on every POST.
-   Flushed to KV by the cron handler (every 1 min).
-   Map<token, Map<hostName, hostEntry>> */
-const BUFFER = new Map();
-const TOKEN_SET = new Set();  // tracks known tokens for registration
+/* Cache-based buffer: avoids KV writes on every POST.
+   POST writes individual host entries to Cache API (free, no limits).
+   Cron reads cache entries, merges into KV (1 write per token per tick).
+   Dashboard GET reads KV + overlays cache for freshness. */
+const CACHE_PREFIX = 'https://nosana-fleet-buffer.internal/';
+
+async function cacheGet(key) {
+  const cache = caches.default;
+  const resp = await cache.match(new Request(CACHE_PREFIX + key));
+  if (!resp) return null;
+  return resp.json();
+}
+
+async function cachePut(key, data, ttl = 900) {
+  const cache = caches.default;
+  const resp = new Response(JSON.stringify(data), {
+    headers: { 'Cache-Control': 'max-age=' + ttl, 'Content-Type': 'application/json' },
+  });
+  await cache.put(new Request(CACHE_PREFIX + key), resp);
+}
+
+async function cacheDelete(key) {
+  const cache = caches.default;
+  await cache.delete(new Request(CACHE_PREFIX + key));
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -135,11 +155,8 @@ async function handleStatusPost(token, request, env) {
   const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
-  // Get previous state from buffer first, then KV
-  const buf = BUFFER.get(token);
-  const bufPrev = buf && buf.get(host);
-  let prev = bufPrev || null;
-  // If not in buffer, check KV for alert detection (only on state changes to limit reads)
+  // Get previous state from cache buffer first, then KV
+  let prev = await cacheGet('host/' + token + '/' + host);
   if (!prev) {
     try {
       const raw = await env.FLEET_DATA.get(token);
@@ -184,10 +201,20 @@ async function handleStatusPost(token, request, env) {
     alerted: isDown,
   };
 
-  // Write to in-memory buffer (NO KV write — flushed by cron)
-  if (!BUFFER.has(token)) BUFFER.set(token, new Map());
-  BUFFER.get(token).set(host, updated);
-  TOKEN_SET.add(token);
+  // Write to cache buffer (NO KV write — flushed by cron every 1 min)
+  await cachePut('host/' + token + '/' + host, updated);
+  // Track which hosts have buffered data for this token
+  const hostList = (await cacheGet('hostlist/' + token)) || [];
+  if (!hostList.includes(host)) {
+    hostList.push(host);
+    await cachePut('hostlist/' + token, hostList);
+  }
+  // Track token for cron
+  const tokenList = (await cacheGet('_tokens')) || [];
+  if (!tokenList.includes(token)) {
+    tokenList.push(token);
+    await cachePut('_tokens', tokenList);
+  }
 
   // --- Recovery alert (immediate, no KV write needed) ---
   if (wasDown && allUpNow) {
@@ -225,12 +252,11 @@ async function handleDashboardGet(token, env) {
   const raw = await env.FLEET_DATA.get(token);
   const data = raw ? JSON.parse(raw) : {};
 
-  // Overlay in-memory buffer for fresh seen timestamps
-  const buf = BUFFER.get(token);
-  if (buf) {
-    for (const [hostName, entry] of buf) {
-      data[hostName] = entry;
-    }
+  // Overlay cache buffer for fresh seen timestamps
+  const hostList = (await cacheGet('hostlist/' + token)) || [];
+  for (const hostName of hostList) {
+    const entry = await cacheGet('host/' + token + '/' + hostName);
+    if (entry) data[hostName] = entry;
   }
 
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
@@ -1362,19 +1388,18 @@ async function handleRequest(request, env) {
 async function handleScheduled(env) {
   const now = Date.now();
 
-  // Merge buffer tokens with persisted token list
-  const tokenList = await env.FLEET_DATA.get('_tokens');
-  const knownTokens = new Set(tokenList ? JSON.parse(tokenList) : []);
-  for (const t of TOKEN_SET) knownTokens.add(t);
+  // Get tokens from cache buffer + KV
+  const cachedTokens = (await cacheGet('_tokens')) || [];
+  const kvTokenList = await env.FLEET_DATA.get('_tokens');
+  const knownTokens = new Set(kvTokenList ? JSON.parse(kvTokenList) : []);
+  for (const t of cachedTokens) knownTokens.add(t);
 
   // Persist token list if new tokens were added
-  if (TOKEN_SET.size > 0) {
-    const merged = [...knownTokens];
-    const oldList = tokenList ? JSON.parse(tokenList) : [];
-    if (merged.length > oldList.length) {
-      try { await env.FLEET_DATA.put('_tokens', JSON.stringify(merged)); } catch {}
+  if (cachedTokens.length > 0) {
+    const oldList = kvTokenList ? JSON.parse(kvTokenList) : [];
+    if (knownTokens.size > oldList.length) {
+      try { await env.FLEET_DATA.put('_tokens', JSON.stringify([...knownTokens])); } catch {}
     }
-    TOKEN_SET.clear();
   }
 
   for (const token of knownTokens) {
@@ -1387,16 +1412,18 @@ async function handleScheduled(env) {
       data = {};
     }
 
-    // Merge buffered entries into KV data
-    const buf = BUFFER.get(token);
+    // Merge cache-buffered entries into KV data
+    const hostList = (await cacheGet('hostlist/' + token)) || [];
     let changed = false;
-    if (buf && buf.size > 0) {
-      for (const [hostName, entry] of buf) {
+    for (const hostName of hostList) {
+      const entry = await cacheGet('host/' + token + '/' + hostName);
+      if (entry) {
         data[hostName] = entry;
+        changed = true;
+        await cacheDelete('host/' + token + '/' + hostName);
       }
-      changed = true;
-      BUFFER.delete(token);
     }
+    if (hostList.length > 0) await cacheDelete('hostlist/' + token);
 
     // Check for stale hosts
     for (const [hostName, host] of Object.entries(data)) {
