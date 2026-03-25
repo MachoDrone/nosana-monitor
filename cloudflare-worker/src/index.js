@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.7
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.8
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -16,31 +16,11 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
 
-/* Cache-based buffer: avoids KV writes on every POST.
-   POST writes individual host entries to Cache API (free, no limits).
-   Cron reads cache entries, merges into KV (1 write per token per tick).
-   Dashboard GET reads KV + overlays cache for freshness. */
-const CACHE_PREFIX = 'https://nosana-fleet-buffer.internal/';
-
-async function cacheGet(key) {
-  const cache = caches.default;
-  const resp = await cache.match(new Request(CACHE_PREFIX + key));
-  if (!resp) return null;
-  return resp.json();
-}
-
-async function cachePut(key, data, ttl = 900) {
-  const cache = caches.default;
-  const resp = new Response(JSON.stringify(data), {
-    headers: { 'Cache-Control': 'max-age=' + ttl, 'Content-Type': 'application/json' },
-  });
-  await cache.put(new Request(CACHE_PREFIX + key), resp);
-}
-
-async function cacheDelete(key) {
-  const cache = caches.default;
-  await cache.delete(new Request(CACHE_PREFIX + key));
-}
+// KV write throttle: track last write time per token to avoid exceeding
+// free-tier 1,000 writes/day. With 2-min cron + throttled POST writes,
+// budget is ~720/day max regardless of fleet size (1-200 hosts).
+const KV_WRITE_INTERVAL_MS = 2 * 60 * 1000; // min 2 min between KV writes per token
+const lastKvWrite = new Map(); // token → timestamp (per-isolate, best-effort)
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -155,17 +135,10 @@ async function handleStatusPost(token, request, env) {
   const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
-  // Get previous state from cache buffer first, then KV
-  let prev = await cacheGet('host/' + token + '/' + host);
-  if (!prev) {
-    try {
-      const raw = await env.FLEET_DATA.get(token);
-      if (raw) {
-        const data = JSON.parse(raw);
-        prev = data[host] || null;
-      }
-    } catch {}
-  }
+  // Read current KV data
+  const raw = await env.FLEET_DATA.get(token);
+  const data = raw ? JSON.parse(raw) : {};
+  const prev = data[host] || null;
 
   const wasDown = prev && (prev.alerted === true || Number(prev.n) === 0);
   const allUpNow = Number(n) === 1;
@@ -201,20 +174,39 @@ async function handleStatusPost(token, request, env) {
     alerted: isDown,
   };
 
-  // Write to cache buffer (NO KV write — flushed by cron every 1 min)
-  await cachePut('host/' + token + '/' + host, updated);
-  // Track which hosts have buffered data for this token
-  const hostList = (await cacheGet('hostlist/' + token)) || [];
-  if (!hostList.includes(host)) {
-    hostList.push(host);
-    await cachePut('hostlist/' + token, hostList);
+  // Update host in data
+  data[host] = updated;
+
+  // Write KV — throttled to max once per KV_WRITE_INTERVAL_MS per token
+  // State changes always write immediately; heartbeat-only updates are throttled
+  const now = Date.now();
+  const lastWrite = lastKvWrite.get(token) || 0;
+  const stateChanged = !prev
+    || String(prev.n) !== String(updated.n)
+    || prev.state !== updated.state
+    || prev.q !== updated.q
+    || prev.tier !== updated.tier
+    || prev.queueTotal !== updated.queueTotal;
+  const shouldWrite = stateChanged || (now - lastWrite) >= KV_WRITE_INTERVAL_MS;
+
+  if (shouldWrite) {
+    try {
+      await env.FLEET_DATA.put(token, JSON.stringify(data));
+      lastKvWrite.set(token, now);
+    } catch (e) {
+      return jsonResponse({ error: 'KV write failed', detail: e.message }, 507);
+    }
   }
-  // Track token for cron
-  const tokenList = (await cacheGet('_tokens')) || [];
-  if (!tokenList.includes(token)) {
-    tokenList.push(token);
-    await cachePut('_tokens', tokenList);
-  }
+
+  // Register token for cron (stale detection)
+  try {
+    const tokenListRaw = await env.FLEET_DATA.get('_tokens');
+    const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
+    if (!tokenSet.has(token)) {
+      tokenSet.add(token);
+      await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
+    }
+  } catch {}
 
   // --- Recovery alert (immediate, no KV write needed) ---
   if (wasDown && allUpNow) {
@@ -252,12 +244,7 @@ async function handleDashboardGet(token, env) {
   const raw = await env.FLEET_DATA.get(token);
   const data = raw ? JSON.parse(raw) : {};
 
-  // Overlay cache buffer for fresh seen timestamps
-  const hostList = (await cacheGet('hostlist/' + token)) || [];
-  for (const hostName of hostList) {
-    const entry = await cacheGet('host/' + token + '/' + hostName);
-    if (entry) data[hostName] = entry;
-  }
+
 
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
 
@@ -1261,13 +1248,7 @@ async function handlePurge(token, request, env) {
   let removed = 0;
   for (const h of hosts) {
     if (data[h]) { delete data[h]; removed++; }
-    // Also clear from cache buffer
-    await cacheDelete('host/' + token + '/' + h);
   }
-  // Update cache hostlist
-  const hostList = (await cacheGet('hostlist/' + token)) || [];
-  const filtered = hostList.filter(h => !hosts.includes(h));
-  if (filtered.length !== hostList.length) await cachePut('hostlist/' + token, filtered);
 
   await env.FLEET_DATA.put(token, JSON.stringify(data));
   return jsonResponse({ ok: true, removed });
@@ -1403,21 +1384,11 @@ async function handleRequest(request, env) {
 async function handleScheduled(env) {
   const now = Date.now();
 
-  // Get tokens from cache buffer + KV
-  const cachedTokens = (await cacheGet('_tokens')) || [];
+  // Get tokens from KV
   const kvTokenList = await env.FLEET_DATA.get('_tokens');
-  const knownTokens = new Set(kvTokenList ? JSON.parse(kvTokenList) : []);
-  for (const t of cachedTokens) knownTokens.add(t);
+  const tokens = kvTokenList ? JSON.parse(kvTokenList) : [];
 
-  // Persist token list if new tokens were added
-  if (cachedTokens.length > 0) {
-    const oldList = kvTokenList ? JSON.parse(kvTokenList) : [];
-    if (knownTokens.size > oldList.length) {
-      try { await env.FLEET_DATA.put('_tokens', JSON.stringify([...knownTokens])); } catch {}
-    }
-  }
-
-  for (const token of knownTokens) {
+  for (const token of tokens) {
     // Read current KV data
     const raw = await env.FLEET_DATA.get(token);
     let data;
@@ -1427,18 +1398,7 @@ async function handleScheduled(env) {
       data = {};
     }
 
-    // Merge cache-buffered entries into KV data
-    const hostList = (await cacheGet('hostlist/' + token)) || [];
     let changed = false;
-    for (const hostName of hostList) {
-      const entry = await cacheGet('host/' + token + '/' + hostName);
-      if (entry) {
-        data[hostName] = entry;
-        changed = true;
-        await cacheDelete('host/' + token + '/' + hostName);
-      }
-    }
-    if (hostList.length > 0) await cacheDelete('hostlist/' + token);
 
     // Check for stale hosts
     for (const [hostName, host] of Object.entries(data)) {
