@@ -507,10 +507,23 @@ except:pass
       _run_count=$(echo "$_rpc_resp" | python3 -c "import sys,json; r=json.load(sys.stdin); print(len(r.get('result',[])))" 2>/dev/null || echo "")
       if [ "$_run_count" -gt 0 ] 2>/dev/null; then
         _dash_s="RUNNING"
-        # Track when we first saw RUNNING for duration bar
+        # Get real job start time from blockchain (RunAccount creation tx)
         if [ "$RUNNING_SINCE" -eq 0 ] 2>/dev/null; then
-          RUNNING_SINCE=$NOW
-          echo "$NOW" > "$RUNNING_STATE_FILE" 2>/dev/null || true
+          _run_addr=$(echo "$_rpc_resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['pubkey'])" 2>/dev/null || echo "")
+          if [ -n "$_run_addr" ]; then
+            _block_time=$(rpc_curl -X POST "$SOLANA_RPC" \
+              -H "Content-Type: application/json" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getSignaturesForAddress\",\"params\":[\"${_run_addr}\",{\"limit\":1}]}" 2>/dev/null | python3 -c "import sys,json; r=json.load(sys.stdin).get('result',[]); print(r[0].get('blockTime',0) if r else 0)" 2>/dev/null || echo "0")
+            if [ "${_block_time:-0}" -gt 0 ] 2>/dev/null; then
+              RUNNING_SINCE="$_block_time"
+              STATE_SINCE="$_block_time"
+            else
+              RUNNING_SINCE=$NOW
+            fi
+          else
+            RUNNING_SINCE=$NOW
+          fi
+          echo "$RUNNING_SINCE" > "$RUNNING_STATE_FILE" 2>/dev/null || true
         fi
         _dash_jobstart="$RUNNING_SINCE"
         # Get timeout from JobAccount (Borsh layout: timeout at offset 225, 8 bytes LE)
