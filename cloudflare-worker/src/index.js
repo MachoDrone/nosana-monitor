@@ -556,11 +556,14 @@ async function handleDashboardGet(token, env) {
       btn.addEventListener('click', async () => {
         const rows = document.querySelectorAll('#fleet tbody tr');
         const stale = [];
+        const now = Date.now();
         rows.forEach(r => {
           const name = r.dataset.host;
           const n = r.dataset.n;
           const state = r.dataset.state;
-          if (!n || n === '0' || !state) stale.push(name);
+          const seen = Number(r.dataset.seen) || 0;
+          const age = now - seen;
+          if (!n || n === '0' || !state || age > 15 * 60 * 1000) stale.push(name);
         });
         const msg = stale.length
           ? 'Remove ' + stale.length + ' offline/stale host(s)?\\n\\n' + stale.join(', ') + '\\n\\nThis removes hosts with no active heartbeat. Active hosts are not affected.'
@@ -1255,7 +1258,13 @@ async function handlePurge(token, request, env) {
   let removed = 0;
   for (const h of hosts) {
     if (data[h]) { delete data[h]; removed++; }
+    // Also clear from cache buffer
+    await cacheDelete('host/' + token + '/' + h);
   }
+  // Update cache hostlist
+  const hostList = (await cacheGet('hostlist/' + token)) || [];
+  const filtered = hostList.filter(h => !hosts.includes(h));
+  if (filtered.length !== hostList.length) await cachePut('hostlist/' + token, filtered);
 
   await env.FLEET_DATA.put(token, JSON.stringify(data));
   return jsonResponse({ ok: true, removed });
