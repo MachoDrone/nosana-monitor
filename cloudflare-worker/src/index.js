@@ -197,7 +197,7 @@ async function handleStatusPost(token, request, env) {
     const level = classifyAlert({ n });
     const payload = JSON.stringify({
       title: alertTitle(level),
-      body: `\u{2716} ${lbl} STOPPED on ${host}`,
+      body: `\u{274C}\u{274C} ${lbl} STOPPED on ${host}`,
       level,
       url: `/d/${token}`,
     });
