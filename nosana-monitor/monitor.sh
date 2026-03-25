@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.02.7"
+VERSION="0.02.8"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -18,7 +18,7 @@ MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
 DASHBOARD_URL=""
 HOST_NAME=""
-DASHBOARD_INTERVAL=300  # 5 minutes — push-on-change handles immediate updates
+DASHBOARD_INTERVAL=600  # 10 minutes — worker skips KV write if no change; keeps under free-tier 1k writes/day
 
 # Parse flags
 while [ $# -gt 0 ]; do

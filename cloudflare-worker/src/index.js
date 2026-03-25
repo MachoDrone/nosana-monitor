@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.7
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.8
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -130,6 +130,7 @@ async function handleStatusPost(token, request, env) {
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
+  const now = Date.now();
   const raw = await env.FLEET_DATA.get(token);
   const data = raw ? JSON.parse(raw) : {};
 
@@ -139,8 +140,8 @@ async function handleStatusPost(token, request, env) {
   const allUpNow = Number(n) === 1;
   const isDown = Number(n) === 0;
 
-  // Update host entry
-  data[host] = {
+  // Build new host entry
+  const updated = {
     n: n ?? 0,
     q: q ?? '',
     state: state ?? '',
@@ -169,15 +170,37 @@ async function handleStatusPost(token, request, env) {
     alerted: isDown,
   };
 
-  await env.FLEET_DATA.put(token, JSON.stringify(data));
+  // Only write KV if data actually changed (skip heartbeat-only updates)
+  const dataChanged = !prev
+    || String(prev.n) !== String(updated.n)
+    || prev.state !== updated.state
+    || prev.q !== updated.q
+    || prev.tier !== updated.tier
+    || prev.version !== updated.version
+    || prev.rewards !== updated.rewards
+    || prev.nodeAddress !== updated.nodeAddress
+    || prev.marketSlug !== updated.marketSlug
+    || (now - (prev.seen || 0)) > 10 * 60 * 1000; // force write every 10 min to keep seen alive
+
+  data[host] = updated;
+
+  if (dataChanged) {
+    try {
+      await env.FLEET_DATA.put(token, JSON.stringify(data));
+    } catch (e) {
+      return jsonResponse({ error: 'KV write failed', detail: e.message }, 507);
+    }
+  }
 
   // Register token for cron processing (avoids expensive list() calls)
-  const tokenListRaw = await env.FLEET_DATA.get('_tokens');
-  const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
-  if (!tokenSet.has(token)) {
-    tokenSet.add(token);
-    await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
-  }
+  try {
+    const tokenListRaw = await env.FLEET_DATA.get('_tokens');
+    const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
+    if (!tokenSet.has(token)) {
+      tokenSet.add(token);
+      await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
+    }
+  } catch {}  // non-critical, token already registered
 
   // --- Recovery alert ---
   if (wasDown && allUpNow) {
