@@ -126,7 +126,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
@@ -162,6 +162,7 @@ async function handleStatusPost(token, request, env) {
     marketAddress: marketAddress || (prev && prev.marketAddress) || '',
     nodeUptime: nodeUptime || (prev && prev.nodeUptime) || '',
     containerStoppedAt: containerStoppedAt || '',
+    downApprox: downApprox || false,
     stateSince: stateSince || (prev && prev.stateSince) || 0,
     seen: Date.now(),
     alerted: isDown,
@@ -228,10 +229,13 @@ async function handleDashboardGet(token, env) {
     return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
   }
 
-  function indicator(val, seen, nodeUptime, containerStoppedAt) {
+  function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox) {
     const stale = now - seen > STALE_THRESHOLD_MS;
     if (stale) return tap('Host unreachable', dot('#888'), tsAttr(seen));
-    if (Number(val) === 0) return tap('Node stopped', dot('#ef4444'), containerStoppedAt ? tsAttr(0, containerStoppedAt) : '');
+    if (Number(val) === 0) {
+      if (containerStoppedAt) return tap(downApprox ? 'Node stopped at unknown time prior to' : 'Node stopped', dot('#ef4444'), tsAttr(0, containerStoppedAt));
+      return tap('Node stopped', dot('#ef4444'));
+    }
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
 
@@ -298,7 +302,7 @@ async function handleDashboardGet(token, env) {
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td>${tierIndicator(h.tier)}</td>
-        <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt)}</td>
+        <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox)}</td>
         <td>${stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
@@ -546,8 +550,9 @@ async function handleDashboardGet(token, env) {
       let label = tap.dataset.label;
       const tsVal = tap.dataset.sinceTs;
       const isoVal = tap.dataset.sinceIso;
-      if (tsVal) { const d = new Date(Number(tsVal)); if (!isNaN(d)) label += ' since ' + fmtLocal(d); }
-      else if (isoVal) { const d = new Date(isoVal); if (!isNaN(d)) label += ' since ' + fmtLocal(d); }
+      const pre = label.includes('prior to') ? ' ' : ' since ';
+      if (tsVal) { const d = new Date(Number(tsVal)); if (!isNaN(d)) label += pre + fmtLocal(d); }
+      else if (isoVal) { const d = new Date(isoVal); if (!isNaN(d)) label += pre + fmtLocal(d); }
       tip.textContent = label;
       tap.appendChild(tip);
       setTimeout(() => { if (tip.parentNode) tip.remove(); }, 1500);

@@ -225,7 +225,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1 || true
 }
 
 # Startup message
@@ -625,8 +625,10 @@ print(b''.join(reversed(o)).decode())
         case "$_dash_stopped" in 0001-*) _dash_stopped="" ;; esac
       fi
       # Fallback 2: first time monitor observed DOWN (set once, doesn't climb)
+      _dash_down_approx="false"
       if [ -z "$_dash_stopped" ] && [ -n "$DOWN_SINCE" ]; then
         _dash_stopped=$(date -u -d "@${DOWN_SINCE}" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
+        _dash_down_approx="true"
       fi
     fi
     # Convert STATE_SINCE to ms for dashboard
