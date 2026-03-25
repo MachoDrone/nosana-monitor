@@ -230,13 +230,15 @@ async function handleDashboardGet(token, env) {
     return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
   }
 
+  const redX = '<span style="color:#ef4444;font-weight:700;font-size:13px">\u{2716}</span>';
+
   function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox, downLabel) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    const lbl = downLabel || 'Node';
+    const lbl = downLabel || 'nosana-node';
     if (stale) return tap('Host unreachable', dot('#888'), tsAttr(seen));
     if (Number(val) === 0) {
-      if (containerStoppedAt) return tap(downApprox ? lbl + ' STOPPED at unknown time prior to' : lbl + ' STOPPED', '\u{274C}', tsAttr(0, containerStoppedAt));
-      return tap(lbl + ' STOPPED', '\u{274C}');
+      if (containerStoppedAt) return tap(downApprox ? lbl + ' STOPPED at unknown time prior to' : lbl + ' STOPPED', redX, tsAttr(0, containerStoppedAt));
+      return tap(lbl + ' STOPPED', redX);
     }
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
