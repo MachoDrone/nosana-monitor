@@ -126,7 +126,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
@@ -163,6 +163,7 @@ async function handleStatusPost(token, request, env) {
     nodeUptime: nodeUptime || (prev && prev.nodeUptime) || '',
     containerStoppedAt: containerStoppedAt || '',
     downApprox: downApprox || false,
+    downLabel: downLabel || 'Node',
     stateSince: stateSince || (prev && prev.stateSince) || 0,
     seen: Date.now(),
     alerted: isDown,
@@ -229,14 +230,19 @@ async function handleDashboardGet(token, env) {
     return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
   }
 
-  function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox) {
+  function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox, downLabel) {
     const stale = now - seen > STALE_THRESHOLD_MS;
+    const lbl = downLabel || 'Node';
     if (stale) return tap('Host unreachable', dot('#888'), tsAttr(seen));
     if (Number(val) === 0) {
-      if (containerStoppedAt) return tap(downApprox ? 'Node stopped at unknown time prior to' : 'Node stopped', dot('#ef4444'), tsAttr(0, containerStoppedAt));
-      return tap('Node stopped', dot('#ef4444'));
+      if (containerStoppedAt) return tap(downApprox ? lbl + ' STOPPED at unknown time prior to' : lbl + ' STOPPED', '\u{274C}', tsAttr(0, containerStoppedAt));
+      return tap(lbl + ' STOPPED', '\u{274C}');
     }
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
+  }
+
+  function isDown(val, seen) {
+    return now - seen > STALE_THRESHOLD_MS || Number(val) === 0;
   }
 
   function tierIndicator(t) {
@@ -301,9 +307,9 @@ async function handleDashboardGet(token, env) {
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
-        <td>${tierIndicator(h.tier)}</td>
-        <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox)}</td>
-        <td>${stateIndicator(h.state, h.stateSince)}</td>
+        <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F6}</span>' : tierIndicator(h.tier)}</td>
+        <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
+        <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenAgo(h.seen)}</td>
