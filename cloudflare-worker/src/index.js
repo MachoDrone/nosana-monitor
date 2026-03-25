@@ -254,8 +254,7 @@ async function handleDashboardGet(token, env) {
     const ampm = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 || 12;
     const time = h12 + ':' + m + ' ' + ampm;
-    const sameDay = d.toDateString() === today.toDateString();
-    return ' since ' + (sameDay ? time : (d.getMonth()+1) + '/' + d.getDate() + ' ' + time);
+    return ' since ' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + time;
   }
 
   function stateIndicator(s, stateSince) {
