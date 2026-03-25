@@ -225,7 +225,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\"}" >/dev/null 2>&1 || true
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"stateSince\":${DASH_STATE_SINCE:-0}}" >/dev/null 2>&1 || true
 }
 
 # Startup message
@@ -272,6 +272,7 @@ DOWN_SINCE=""
 LAST_DASHBOARD_PUSH=0
 LAST_DASHBOARD_STATE=""
 LAST_DASH_STATE=""
+DASH_STATE_SINCE=0
 LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
 RUNNING_STATE_FILE="/state/running-since"
@@ -596,6 +597,13 @@ print(b''.join(reversed(o)).decode())
       _dash_gpuid=""
       _dash_jobstart="0"
       _dash_jobtimeout="0"
+    fi
+    # Track when dashboard state changed
+    if [ "$_dash_s" != "$LAST_DASH_STATE" ] && [ -n "$_dash_s" ]; then
+      DASH_STATE_SINCE=$(( NOW * 1000 ))
+      LAST_DASH_STATE="$_dash_s"
+    elif [ "$DASH_STATE_SINCE" -eq 0 ] 2>/dev/null && [ -n "$_dash_s" ]; then
+      DASH_STATE_SINCE=$(( NOW * 1000 ))
     fi
     _dash_combined="${_dash_n}:${_dash_q}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then

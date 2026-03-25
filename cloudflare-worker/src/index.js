@@ -126,7 +126,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, stateSince } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read existing data for this token
@@ -160,6 +160,7 @@ async function handleStatusPost(token, request, env) {
     rewards: rewards ?? '',
     marketSlug: marketSlug || (prev && prev.marketSlug) || '',
     marketAddress: marketAddress || (prev && prev.marketAddress) || '',
+    stateSince: stateSince || (prev && prev.stateSince) || 0,
     seen: Date.now(),
     alerted: isDown,
   };
@@ -225,11 +226,12 @@ async function handleDashboardGet(token, env) {
     return '<span class="tap" data-label="' + label + '">' + content + '</span>';
   }
 
-  function indicator(val, seen) {
+  function indicator(val, seen, stateSince) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return tap('STALE', dot('#888'));
-    if (Number(val) === 0) return tap('DOWN', dot('#ef4444'));
-    return tap('UP', dot('#22c55e'));
+    const since = fmtSince(stateSince);
+    if (stale) return tap('STALE' + since, dot('#888'));
+    if (Number(val) === 0) return tap('DOWN' + since, dot('#ef4444'));
+    return tap('UP' + since, dot('#22c55e'));
   }
 
   function tierIndicator(t) {
@@ -243,12 +245,23 @@ async function handleDashboardGet(token, env) {
 
   const dot = (color) => '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + '"></span>';
 
-  function stateIndicator(s) {
+  function fmtSince(ts) {
+    if (!ts || ts === 0) return '';
+    const d = new Date(Number(ts));
+    const h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return ' since ' + h12 + ':' + m + ' ' + ampm;
+  }
+
+  function stateIndicator(s, stateSince) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
-    if (st === 'RUNNING') return tap('RUNNING', dot('#3b82f6'));
-    if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">Q</span>');
-    if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'));
+    const since = fmtSince(stateSince);
+    if (st === 'RUNNING') return tap('RUNNING' + since, dot('#3b82f6'));
+    if (st === 'QUEUED') return tap('QUEUED' + since, '<span style="color:#4ade80;font-weight:600">Q</span>');
+    if (st === 'RESTARTING') return tap('RESTARTING' + since, dot('#f97316'));
     return tap(st, st.charAt(0));
   }
 
@@ -288,8 +301,8 @@ async function handleDashboardGet(token, env) {
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td>${tierIndicator(h.tier)}</td>
-        <td>${indicator(h.n, h.seen)}</td>
-        <td>${stateIndicator(h.state)}</td>
+        <td>${indicator(h.n, h.seen, h.stateSince)}</td>
+        <td>${stateIndicator(h.state, h.stateSince)}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenAgo(h.seen)}</td>
