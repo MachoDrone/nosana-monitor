@@ -618,11 +618,15 @@ print(b''.join(reversed(o)).decode())
     # If node is not running, try to get container stop time
     if [ "$_dash_n" = "0" ] || ([ "$_dash_s" != "RUNNING" ] && [ -z "$_dash_s" ]); then
       _dash_stopped=$(docker exec podman podman inspect nosana-node --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
-      # Fallback: if podman itself is stopped, use podman's stop time
+      # Fallback 1: if podman itself is stopped, use podman's stop time
       if [ -z "$_dash_stopped" ]; then
         _dash_stopped=$(docker inspect podman --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
         # Ignore if podman is running (FinishedAt = 0001-01-01)
         case "$_dash_stopped" in 0001-*) _dash_stopped="" ;; esac
+      fi
+      # Fallback 2: first time monitor observed DOWN (set once, doesn't climb)
+      if [ -z "$_dash_stopped" ] && [ -n "$DOWN_SINCE" ]; then
+        _dash_stopped=$(date -u -d "@${DOWN_SINCE}" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
       fi
     fi
     # Convert STATE_SINCE to ms for dashboard
