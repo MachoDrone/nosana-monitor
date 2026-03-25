@@ -230,13 +230,13 @@ async function handleDashboardGet(token, env) {
 
   function indicator(val, seen, nodeUptime, containerStoppedAt) {
     const stale = now - seen > STALE_THRESHOLD_MS;
-    if (stale) return tap('Host unreachable — last seen' + fmtSince(seen), dot('#888'));
+    if (stale) return tap('Host unreachable — last seen' + fmtSinceEpoch(seen), dot('#888'));
     if (Number(val) === 0) {
-      const stopTime = containerStoppedAt ? fmtSince(new Date(containerStoppedAt).getTime()) : fmtSince(seen);
-      return tap('Node stopped' + stopTime, dot('#ef4444'));
+      const stopLabel = containerStoppedAt ? fmtSinceISO(containerStoppedAt) : fmtSinceEpoch(seen);
+      return tap('Node stopped' + stopLabel, dot('#ef4444'));
     }
-    const uptimeSince = nodeUptime ? fmtSince(new Date(nodeUptime).getTime()) : '';
-    return tap('UP' + uptimeSince, dot('#22c55e'));
+    const uptimeLabel = nodeUptime ? fmtSinceISO(nodeUptime) : '';
+    return tap('UP' + uptimeLabel, dot('#22c55e'));
   }
 
   function tierIndicator(t) {
@@ -250,22 +250,19 @@ async function handleDashboardGet(token, env) {
 
   const dot = (color) => '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + '"></span>';
 
-  function fmtSince(ts) {
+  function fmtSinceEpoch(ts) {
     if (!ts || ts === 0) return '';
-    const d = new Date(Number(ts));
-    const today = new Date(now);
-    const h = d.getHours();
-    const m = d.getMinutes().toString().padStart(2, '0');
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    const time = h12 + ':' + m + ' ' + ampm;
-    return ' since ' + (d.getMonth()+1) + '/' + d.getDate() + ' ' + time;
+    return ' since <span class="local-time" data-ts="' + ts + '"></span>';
+  }
+  function fmtSinceISO(iso) {
+    if (!iso) return '';
+    return ' since <span class="local-time" data-iso="' + iso + '"></span>';
   }
 
   function stateIndicator(s, stateSince) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
-    const since = stateSince ? fmtSince(Number(stateSince)) : '';
+    const since = stateSince ? fmtSinceEpoch(Number(stateSince)) : '';
     if (st === 'RUNNING') return tap('RUNNING' + since, dot('#3b82f6'));
     if (st === 'QUEUED') return tap('QUEUED' + since, '<span style="color:#4ade80;font-weight:600">Q</span>');
     if (st === 'RESTARTING') return tap('RESTARTING' + since, dot('#f97316'));
@@ -460,6 +457,18 @@ async function handleDashboardGet(token, env) {
   </div>
 
   <script>
+    // Convert all timestamps to browser local time
+    document.querySelectorAll('.local-time').forEach(el => {
+      let d;
+      if (el.dataset.ts) d = new Date(Number(el.dataset.ts));
+      else if (el.dataset.iso) d = new Date(el.dataset.iso);
+      if (!d || isNaN(d)) return;
+      const h = d.getHours(), m = d.getMinutes().toString().padStart(2,'0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      el.textContent = (d.getMonth()+1) + '/' + d.getDate() + ' ' + h12 + ':' + m + ' ' + ampm;
+    });
+
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
 
