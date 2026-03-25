@@ -343,7 +343,7 @@ async function handleDashboardGet(token, env) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{overscroll-behavior-y:contain}
-    #gatherFill.breathe{background:#001700}
+    #gatherFill.breathe{background:#001900}
     @media(max-width:600px){#gatherFill.breathe{background:#151515}}
     @keyframes barBreathe{0%{width:0%}50%{width:100%}100%{width:0%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
