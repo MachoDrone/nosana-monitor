@@ -291,9 +291,12 @@ async function handleDashboardGet(token, env) {
     const elapsed = Math.max(0, Math.floor(now / 1000) - Number(h.jobStart));
     const max = Number(h.jobTimeout);
     const pct = Math.min(100, Math.round((elapsed / max) * 100));
-    const bar = '<span class="dur-bar"><span class="dur-fill" style="width:' + pct + '%"></span></span>';
+    const exceeded = elapsed > max;
+    const barColor = exceeded ? '#ef4444' : '#4ade80';
+    const bar = '<span class="dur-bar"><span class="dur-fill" style="width:' + pct + '%;background:' + barColor + '"></span></span>';
     const text = fmtDuration(elapsed) + ' / ' + fmtDuration(max);
-    return '<span class="dur-mode dur-m-bar">' + tap(text, bar) + '</span><span class="dur-mode dur-m-text">' + text + '</span>';
+    const styledText = exceeded ? '<span style="color:#ef4444;font-weight:700">' + text + '</span>' : text;
+    return '<span class="dur-mode dur-m-bar">' + tap(exceeded ? '\u{26A0}\u{FE0F} EXCEEDED — ' + text : text, bar) + '</span><span class="dur-mode dur-m-text">' + styledText + '</span>';
   }
 
   function seenAgo(ts) {
@@ -367,12 +370,10 @@ async function handleDashboardGet(token, env) {
     tbody tr:nth-child(even){background:#171717}
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
-    th:not(:first-child){height:80px;position:relative}
-    th:not(:first-child) div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
-    th:first-child div{padding:0}
+    th{height:80px;position:relative}
+    th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80}
-    th:not(:first-child) .sort-arrow{font-size:6px}
     td.host{text-align:left;font-weight:600;color:#fff}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
