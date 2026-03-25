@@ -321,7 +321,7 @@ async function handleDashboardGet(token, env) {
     .map(
       ([name, h]) => `
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
-        <td style="padding:2px">${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F6}</span>' : tierIndicator(h.tier)}</td>
+        <td style="padding:0 1px">${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F6}</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
@@ -428,7 +428,7 @@ async function handleDashboardGet(token, env) {
       : `<table id="fleet">
     <thead>
       <tr>
-        <th data-col="tier" data-type="string" style="width:0;padding:2px"><div>Status</div></th>
+        <th data-col="tier" data-type="string" style="width:0;padding:0 1px"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
@@ -595,17 +595,10 @@ async function handleDashboardGet(token, env) {
         clearArrows();
         const arrow = document.createElement('span');
         arrow.className = 'sort-arrow';
-        const isRotated = th !== headers[0];
+        arrow.textContent = dir === 1 ? ' \\u25C0' : ' \\u25B6';
         const div = th.querySelector('div');
-        if (isRotated) {
-          arrow.textContent = dir === 1 ? '\\u25C0 ' : '\\u25B6 ';
-          if (div) div.insertBefore(arrow, div.firstChild);
-          else th.insertBefore(arrow, th.firstChild);
-        } else {
-          arrow.textContent = dir === 1 ? ' \\u25B2' : ' \\u25BC';
-          if (div) div.appendChild(arrow);
-          else th.appendChild(arrow);
-        }
+        if (div) div.insertBefore(arrow, div.firstChild);
+        else th.insertBefore(arrow, th.firstChild);
       }
 
       function resetSort() {
