@@ -18,7 +18,7 @@ MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
 DASHBOARD_URL=""
 HOST_NAME=""
-DASHBOARD_INTERVAL=600  # 10 minutes — worker skips KV write if no change; keeps under free-tier 1k writes/day
+DASHBOARD_INTERVAL=120  # 2 minutes — worker throttles KV writes (max 1 per 2min per token); safe for 1-200 hosts
 
 # Parse flags
 while [ $# -gt 0 ]; do
