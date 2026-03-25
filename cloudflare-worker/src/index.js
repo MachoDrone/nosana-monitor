@@ -321,7 +321,7 @@ async function handleDashboardGet(token, env) {
     .map(
       ([name, h]) => `
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
-        <td style="width:20px!important;min-width:20px;max-width:20px;padding:0">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
+        <td style="padding:0">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
@@ -364,7 +364,6 @@ async function handleDashboardGet(token, env) {
     h1{font-size:18px;margin-bottom:8px;color:#fff}
     .legend{font-size:11px;color:#888;margin-bottom:12px}
     table{width:100%;border-collapse:collapse}
-    .col-status{width:20px}
     th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;white-space:nowrap}
     tbody tr:nth-child(even){background:#171717}
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
@@ -427,10 +426,9 @@ async function handleDashboardGet(token, env) {
     hosts.length === 0
       ? '<div class="empty">No host data yet. Waiting for monitors...</div>'
       : `<table id="fleet">
-    <colgroup><col class="col-status"><col span="16"></colgroup>
     <thead>
       <tr>
-        <th data-col="tier" data-type="string" style="width:20px!important;min-width:20px;max-width:20px;padding:0"><div>Status</div></th>
+        <th data-col="tier" data-type="string" style="padding:0"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
