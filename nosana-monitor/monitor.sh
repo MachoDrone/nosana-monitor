@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.03.2"
+VERSION="0.03.9"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -225,7 +225,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   if curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0}}" >/dev/null 2>&1; then
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\"}" >/dev/null 2>&1; then
     DASHBOARD_PUSH_OK=1
   else
     DASHBOARD_PUSH_OK=0

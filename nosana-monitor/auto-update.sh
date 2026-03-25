@@ -18,7 +18,10 @@ while true; do
   # Pull latest
   git fetch -q origin 2>/dev/null || { sleep "$POLL_INTERVAL"; continue; }
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  git merge -q "origin/${BRANCH}" 2>/dev/null || { sleep "$POLL_INTERVAL"; continue; }
+  if ! git merge -q "origin/${BRANCH}" 2>/dev/null; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Merge failed on branch ${BRANCH}, resetting to origin"
+    git reset --hard "origin/${BRANCH}" 2>/dev/null || true
+  fi
 
   # Check if monitor source changed
   NEW_HASH=$(sha256sum "${MONITOR_DIR}/monitor.sh" "${MONITOR_DIR}/Dockerfile" "${MONITOR_DIR}/derive-pubkey.py" 2>/dev/null | sha256sum | cut -d' ' -f1)
@@ -30,8 +33,7 @@ while true; do
     # Capture current container args
     CURRENT_ARGS=$(docker inspect "$CONTAINER_NAME" --format '{{range .Args}}{{.}} {{end}}' 2>/dev/null || echo "")
     if [ -z "$CURRENT_ARGS" ]; then
-      echo "WARNING: Could not read container args, skipping update"
-      echo "$NEW_HASH" > "$HASH_FILE"
+      echo "WARNING: Could not read container args, will retry next cycle"
       sleep "$POLL_INTERVAL"
       continue
     fi
@@ -47,11 +49,10 @@ while true; do
         -v /var/run/docker.sock:/var/run/docker.sock \
         "${IMAGE_NAME}:latest" $CURRENT_ARGS
       echo "$(date '+%Y-%m-%d %H:%M:%S') Monitor updated and restarted"
+      echo "$NEW_HASH" > "$HASH_FILE"
     else
-      echo "$(date '+%Y-%m-%d %H:%M:%S') Build failed, skipping"
+      echo "$(date '+%Y-%m-%d %H:%M:%S') Build failed, will retry next cycle"
     fi
-
-    echo "$NEW_HASH" > "$HASH_FILE"
   fi
 
   sleep "$POLL_INTERVAL"

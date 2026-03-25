@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.8
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.9
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -132,7 +132,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read current KV data
@@ -170,6 +170,7 @@ async function handleStatusPost(token, request, env) {
     downApprox: downApprox || false,
     downLabel: downLabel || 'Node',
     stateSince: stateSince || (prev && prev.stateSince) || 0,
+    monitorVersion: monitorVersion || (prev && prev.monitorVersion) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -253,6 +254,8 @@ async function handleDashboardGet(token, env) {
   const activeHosts = hosts.filter(([, h]) => Number(h.n) === 1 && (now - h.seen <= STALE_THRESHOLD_MS));
   const totalHosts = activeHosts.length || hosts.length;
   const completeHosts = activeHosts.filter(([, h]) => h.tier && h.dl && h.ping).length;
+  const monitorVersions = [...new Set(hosts.map(([, h]) => h.monitorVersion).filter(Boolean))];
+  const versionLabel = monitorVersions.length === 0 ? '' : monitorVersions.length === 1 ? 'v' + monitorVersions[0] : monitorVersions.map(v => 'v' + v).join(' / ');
 
   function tap(label, content, extraAttrs) {
     return '<span class="tap" data-label="' + label + '"' + (extraAttrs || '') + '>' + content + '</span>';
@@ -1081,6 +1084,7 @@ async function handleDashboardGet(token, env) {
       startBarAnimation();
     })();
   </script>
+  ${versionLabel ? '<div style="text-align:right;font-size:10px;color:#555;margin-top:8px">' + versionLabel + '</div>' : ''}
 </body>
 </html>`;
 
