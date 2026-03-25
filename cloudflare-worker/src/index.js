@@ -248,9 +248,9 @@ async function handleDashboardGet(token, env) {
     if (!t) return '-';
     const ch = t.charAt(0).toUpperCase();
     const label = ch === 'P' ? 'PREMIUM' : ch === 'C' ? 'COMMUNITY' : t;
-    if (ch === 'P') return tap(label, '<span style="color:#4ade80">' + ch + '</span>');
-    if (ch === 'C') return tap(label, '<span style="color:#16a34a">' + ch + '</span>');
-    return tap(label, '<span style="color:#ef4444">' + ch + '</span>');
+    if (ch === 'P') return tap(label, '<span style="color:#4ade80;font-size:11px">' + ch + '</span>');
+    if (ch === 'C') return tap(label, '<span style="color:#16a34a;font-size:11px">' + ch + '</span>');
+    return tap(label, '<span style="color:#ef4444;font-size:11px">' + ch + '</span>');
   }
 
   const dot = (color) => '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + '"></span>';
