@@ -320,6 +320,8 @@ async function handleDashboardGet(token, env) {
   <title>Nosana Fleet</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
+    body{opacity:0;transition:opacity 0.1s}
+    body.ready{opacity:1}
     html,body{overscroll-behavior-y:contain}
     #gatherFill.breathe{background:#001700}
     @media(max-width:600px){#gatherFill.breathe{background:#151515}}
@@ -442,6 +444,7 @@ async function handleDashboardGet(token, env) {
   </div>
 
   <script>
+    document.body.classList.add('ready');
     const TOKEN = ${JSON.stringify(token)};
     const VAPID_PUBLIC_KEY = ${JSON.stringify(vapidPublicKey)};
 
