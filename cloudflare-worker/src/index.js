@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.9
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.03.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -406,7 +406,8 @@ async function handleDashboardGet(token, env) {
     th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
-    td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px;width:1px}
+    td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px}
+    th[data-col="host"],td.host{width:1%;white-space:nowrap}
     td.node-addr a{color:#60a5fa;text-decoration:none}
     td.node-addr a:hover{text-decoration:underline}
     td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
@@ -466,7 +467,7 @@ async function handleDashboardGet(token, env) {
     <thead>
       <tr>
         <th data-col="tier" data-type="string" style="padding:0"><div>Status</div></th>
-        <th data-col="host" data-type="string" style="padding:0"><div>PC</div></th>
+        <th data-col="host" data-type="string"><div>PC</div></th>
         <th data-col="node" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Host<br>Address</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
