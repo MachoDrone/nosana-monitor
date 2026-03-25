@@ -293,7 +293,8 @@ async function handleDashboardGet(token, env) {
     const pct = Math.min(100, Math.round((elapsed / max) * 100));
     const exceeded = elapsed > max;
     const barColor = exceeded ? '#ef4444' : '#4ade80';
-    const bar = '<span class="dur-bar"><span class="dur-fill" style="width:' + pct + '%;background:' + barColor + '"></span></span>';
+    const barHeight = exceeded ? 'height:12px' : '';
+    const bar = '<span class="dur-bar" style="' + barHeight + '"><span class="dur-fill" style="width:' + pct + '%;background:' + barColor + '"></span></span>';
     const text = fmtDuration(elapsed) + ' / ' + fmtDuration(max);
     const styledText = exceeded ? '<span style="color:#ef4444;font-weight:700">' + text + '</span>' : text;
     return '<span class="dur-mode dur-m-bar">' + tap(exceeded ? '\u{26A0}\u{FE0F} EXCEEDED — ' + text : text, bar) + '</span><span class="dur-mode dur-m-text">' + styledText + '</span>';
