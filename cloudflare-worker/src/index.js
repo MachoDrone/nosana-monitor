@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.8
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.02.9
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -15,6 +15,12 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
+
+/* In-memory buffer: avoids KV writes on every POST.
+   Flushed to KV by the cron handler (every 1 min).
+   Map<token, Map<hostName, hostEntry>> */
+const BUFFER = new Map();
+const TOKEN_SET = new Set();  // tracks known tokens for registration
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -129,13 +135,21 @@ async function handleStatusPost(token, request, env) {
   const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
-  // Read existing data for this token
-  const now = Date.now();
-  const raw = await env.FLEET_DATA.get(token);
-  const data = raw ? JSON.parse(raw) : {};
+  // Get previous state from buffer first, then KV
+  const buf = BUFFER.get(token);
+  const bufPrev = buf && buf.get(host);
+  let prev = bufPrev || null;
+  // If not in buffer, check KV for alert detection (only on state changes to limit reads)
+  if (!prev) {
+    try {
+      const raw = await env.FLEET_DATA.get(token);
+      if (raw) {
+        const data = JSON.parse(raw);
+        prev = data[host] || null;
+      }
+    } catch {}
+  }
 
-  // Capture previous state for recovery detection
-  const prev = data[host] || null;
   const wasDown = prev && (prev.alerted === true || Number(prev.n) === 0);
   const allUpNow = Number(n) === 1;
   const isDown = Number(n) === 0;
@@ -170,39 +184,12 @@ async function handleStatusPost(token, request, env) {
     alerted: isDown,
   };
 
-  // Only write KV if data actually changed (skip heartbeat-only updates)
-  const dataChanged = !prev
-    || String(prev.n) !== String(updated.n)
-    || prev.state !== updated.state
-    || prev.q !== updated.q
-    || prev.tier !== updated.tier
-    || prev.version !== updated.version
-    || prev.rewards !== updated.rewards
-    || prev.nodeAddress !== updated.nodeAddress
-    || prev.marketSlug !== updated.marketSlug
-    || (now - (prev.seen || 0)) > 10 * 60 * 1000; // force write every 10 min to keep seen alive
+  // Write to in-memory buffer (NO KV write — flushed by cron)
+  if (!BUFFER.has(token)) BUFFER.set(token, new Map());
+  BUFFER.get(token).set(host, updated);
+  TOKEN_SET.add(token);
 
-  data[host] = updated;
-
-  if (dataChanged) {
-    try {
-      await env.FLEET_DATA.put(token, JSON.stringify(data));
-    } catch (e) {
-      return jsonResponse({ error: 'KV write failed', detail: e.message }, 507);
-    }
-  }
-
-  // Register token for cron processing (avoids expensive list() calls)
-  try {
-    const tokenListRaw = await env.FLEET_DATA.get('_tokens');
-    const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
-    if (!tokenSet.has(token)) {
-      tokenSet.add(token);
-      await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
-    }
-  } catch {}  // non-critical, token already registered
-
-  // --- Recovery alert ---
+  // --- Recovery alert (immediate, no KV write needed) ---
   if (wasDown && allUpNow) {
     const level = 'info';
     const payload = JSON.stringify({
@@ -214,7 +201,7 @@ async function handleStatusPost(token, request, env) {
     await sendAlerts(token, payload, env);
   }
 
-  // --- Down alert ---
+  // --- Down alert (immediate) ---
   if (isDown) {
     const lbl = downLabel || 'nosana-node';
     const level = classifyAlert({ n });
@@ -224,7 +211,6 @@ async function handleStatusPost(token, request, env) {
       level,
       url: `/d/${token}`,
     });
-
     await sendAlerts(token, payload, env);
   }
 
@@ -238,6 +224,15 @@ async function handleStatusPost(token, request, env) {
 async function handleDashboardGet(token, env) {
   const raw = await env.FLEET_DATA.get(token);
   const data = raw ? JSON.parse(raw) : {};
+
+  // Overlay in-memory buffer for fresh seen timestamps
+  const buf = BUFFER.get(token);
+  if (buf) {
+    for (const [hostName, entry] of buf) {
+      data[hostName] = entry;
+    }
+  }
+
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
@@ -1366,32 +1361,48 @@ async function handleRequest(request, env) {
 async function handleScheduled(env) {
   const now = Date.now();
 
-  // Get known tokens from a simple KV key instead of listing all keys
+  // Merge buffer tokens with persisted token list
   const tokenList = await env.FLEET_DATA.get('_tokens');
-  const tokens = tokenList ? JSON.parse(tokenList) : [];
+  const knownTokens = new Set(tokenList ? JSON.parse(tokenList) : []);
+  for (const t of TOKEN_SET) knownTokens.add(t);
 
-  for (const token of tokens) {
+  // Persist token list if new tokens were added
+  if (TOKEN_SET.size > 0) {
+    const merged = [...knownTokens];
+    const oldList = tokenList ? JSON.parse(tokenList) : [];
+    if (merged.length > oldList.length) {
+      try { await env.FLEET_DATA.put('_tokens', JSON.stringify(merged)); } catch {}
+    }
+    TOKEN_SET.clear();
+  }
+
+  for (const token of knownTokens) {
+    // Read current KV data
     const raw = await env.FLEET_DATA.get(token);
-    if (!raw) continue;
-
     let data;
     try {
-      data = JSON.parse(raw);
+      data = raw ? JSON.parse(raw) : {};
     } catch {
-      continue;
+      data = {};
     }
 
+    // Merge buffered entries into KV data
+    const buf = BUFFER.get(token);
     let changed = false;
+    if (buf && buf.size > 0) {
+      for (const [hostName, entry] of buf) {
+        data[hostName] = entry;
+      }
+      changed = true;
+      BUFFER.delete(token);
+    }
 
+    // Check for stale hosts
     for (const [hostName, host] of Object.entries(data)) {
       const age = now - host.seen;
-      const wasUp =
-        Number(host.m) === 1 &&
-        Number(host.c) === 1 &&
-        Number(host.n) === 1;
+      const wasUp = Number(host.n) === 1;
 
       if (age > STALE_THRESHOLD_MS && wasUp && !host.alerted) {
-        // Newly stale — send critical alert
         const level = classifyAlert({ n: host.n, stale: true });
         const payload = JSON.stringify({
           title: alertTitle(level),
@@ -1407,8 +1418,9 @@ async function handleScheduled(env) {
       }
     }
 
+    // Single KV write per token per cron tick (only if anything changed)
     if (changed) {
-      await env.FLEET_DATA.put(token, JSON.stringify(data));
+      try { await env.FLEET_DATA.put(token, JSON.stringify(data)); } catch {}
     }
   }
 }
