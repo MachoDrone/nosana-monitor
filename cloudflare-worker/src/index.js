@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.5
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.6
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -453,7 +453,7 @@ async function handleDashboardGet(token, env) {
     @keyframes durSweep{0%{left:-100%}100%{left:100%}}
     @keyframes colorShift{0%{color:#3b82f6}14%{color:#60a5fa}28%{color:#93c5fd}42%{color:#2563eb}57%{color:#1d4ed8}71%{color:#3b82f6}85%{color:#7dd3fc}100%{color:#3b82f6}}
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
-    .state-running{animation:colorShift 3s ease-in-out infinite}
+    .state-running{animation:colorShift 6s ease-in-out infinite}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
@@ -490,7 +490,7 @@ async function handleDashboardGet(token, env) {
     .empty{text-align:center;padding:32px;color:#666}
     .dur-bar{display:inline-block;width:30px;height:8px;background:#333;border-radius:4px;vertical-align:middle}
     .dur-fill{display:block;height:100%;background:#4ade80;border-radius:4px;position:relative;overflow:hidden}
-    .dur-fill::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);animation:durSweep 2s ease-in-out infinite}
+    .dur-fill::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent);animation:durSweep 8s ease-in-out infinite}
     .dur-m-text{display:none}
     body.dur-text .dur-m-bar{display:none}
     body.dur-text .dur-m-text{display:inline}
