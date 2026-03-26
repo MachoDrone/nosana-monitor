@@ -337,9 +337,9 @@ async function handleDashboardGet(token, env) {
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
     if (st === 'RUNNING') { const d = (++runIdx * 17.3) % 75; return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa); }
-    if (st === 'QUEUED' && (!q || q === '-' || q === '0')) return tap('Transition/Restarting', dot('#f97316'), sa);
+    if (st === 'QUEUED' && (!q || q === '-' || q === '0')) return tap('Transition/Restarting', '<span class="restart-dots"><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span></span>', sa);
     if (st === 'QUEUED') { const d = (++queueIdx * 2.3) % 7; return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot2" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot3" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/></svg></span>', sa); }
-    if (st === 'RESTARTING') return tap('Transition/Restarting', dot('#f97316'), sa);
+    if (st === 'RESTARTING') return tap('Transition/Restarting', '<span class="restart-dots"><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span></span>', sa);
     return tap(st, st.charAt(0));
   }
 
@@ -475,6 +475,13 @@ async function handleDashboardGet(token, env) {
     @keyframes durSweep{0%{left:-100%}5%{left:-100%}10%{left:100%}100%{left:100%}}
     @keyframes colorShift{0%{color:#3b82f6}14%{color:#60a5fa}28%{color:#93c5fd}42%{color:#2563eb}57%{color:#1d4ed8}71%{color:#3b82f6}85%{color:#7dd3fc}100%{color:#3b82f6}}
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
+    .restart-dots{display:inline-block;position:relative;width:16px;height:16px;vertical-align:middle;animation:rdotSpin 1.5s linear infinite}
+    .rdot{position:absolute;width:4px;height:4px;border-radius:50%;background:#f59e0b}
+    .rdot:nth-child(1){top:0;left:6px}
+    .rdot:nth-child(2){top:6px;right:0}
+    .rdot:nth-child(3){bottom:0;left:6px}
+    .rdot:nth-child(4){top:6px;left:0}
+    @keyframes rdotSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
     .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
     .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%) rotate(5deg)}
