@@ -455,7 +455,7 @@ async function handleDashboardGet(token, env) {
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
     .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-    .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%) rotate(-15deg)}
+    .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%) rotate(5deg)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
