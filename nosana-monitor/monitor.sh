@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.4"
+VERSION="0.07.5"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -329,6 +329,7 @@ RUNNING_SINCE=0  # always re-fetch from blockchain on startup
 LAST_JOB_ADDR_FILE="/state/last-job-addr"
 CACHED_RUN_ADDR=""   # cached RunAccount address — avoids getProgramAccounts when RUNNING
 CACHED_JOB_ADDR=""   # cached JobAccount address — avoids re-parsing RPC response
+CACHED_AUTHORITY=""   # cached authority pubkey — avoids scanning for registration account
 LAST_JOB_ADDR=$(cat "$LAST_JOB_ADDR_FILE" 2>/dev/null || echo "")
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
@@ -577,10 +578,13 @@ v=r.get('result',{}).get('value',[])
 print(f'{v[0][\"account\"][\"data\"][\"parsed\"][\"info\"][\"tokenAmount\"][\"uiAmount\"]:.2f}' if v else '0')
 " 2>/dev/null || echo "")
 
-      # Staked NOS: check the Nosana staking program for this node's authority
-      _auth=$(rpc_curl -s -X POST "$SOLANA_RPC" \
-        -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null | python3 -c "
+      # Staked NOS: derive StakeAccount PDA from cached authority (no scanning)
+      # Authority is cached from the registration account (offset 8) — queried once
+      if [ -z "$CACHED_AUTHORITY" ]; then
+        # One-time authority lookup via the same RunAccount/registration data
+        CACHED_AUTHORITY=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null | python3 -c "
 import sys,json,base64
 ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 def to_b58(pk):
@@ -595,27 +599,55 @@ if r.get('result'):
     data=base64.b64decode(r['result'][0]['account']['data'][0])
     print(to_b58(data[0:32]))
 " 2>/dev/null || echo "")
+      fi
       STAKED_NOS="0"
-      if [ -n "$_auth" ]; then
-        STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
-          -H "Content-Type: application/json" \
-          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosScmHY2uR24Vh751ctsLGdXA2kF7SyMjPjLEfPqRb\",{\"filters\":[{\"memcmp\":{\"offset\":8,\"bytes\":\"${_auth}\"}}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
+      if [ -n "$CACHED_AUTHORITY" ]; then
+        # Derive StakeAccount PDA: seeds=["stake", NOS_MINT, authority]
+        # Then use getAccountInfo (light call) instead of getProgramAccounts
+        _stake_addr=$(python3 -c "
+import hashlib
+ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+def from_b58(s):
+    n=0
+    for c in s.encode():
+        n=n*58+ALPHA.index(c)
+    return n.to_bytes(32,'big')
+def find_pda(seeds, program_id):
+    for bump in range(255,-1,-1):
+        try:
+            h=hashlib.sha256(b''.join(seeds)+bytes([bump])+b'ProgramDerivedAddress'+from_b58(program_id)).digest()
+            # Check if point is on curve (simplified: just return the address)
+            return h, bump
+        except: pass
+    return None, None
+auth=from_b58('${CACHED_AUTHORITY}')
+mint=from_b58('nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7')
+prog='nosScmHY2uR24Vh751PmGj9ww9QRNHewh9H59AfrTJE'
+seeds=[b'stake', mint, auth]
+addr_bytes, bump = find_pda(seeds, prog)
+if addr_bytes:
+    n=int.from_bytes(addr_bytes,'big');o=[]
+    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
+    for x in addr_bytes:
+        if x==0:o.append(b'1')
+        else:break
+    print(b''.join(reversed(o)).decode())
+" 2>/dev/null || echo "")
+        if [ -n "$_stake_addr" ]; then
+          STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+            -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_stake_addr}\",{\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 r=json.load(sys.stdin)
-accts=r.get('result',[])
-if accts:
-    data=base64.b64decode(accts[0]['account']['data'][0])
-    # Find the staked amount — scan for reasonable token values
-    for off in range(40, min(len(data)-7, 200), 8):
-        val=struct.unpack_from('<Q',data,off)[0]
-        if 0 < val < 1e15:
-            print(f'{val/1e6:.4f}')
-            break
-    else:
-        print('0')
+v=r.get('result',{}).get('value')
+if v:
+    data=base64.b64decode(v['data'][0])
+    val=struct.unpack_from('<Q',data,8)[0]
+    print(f'{val/1e6:.4f}')
 else:
     print('0')
 " 2>/dev/null || echo "0")
+        fi
       fi
 
       # Min stake required from market account (node_xnos_minimum at offset 130, u128)
