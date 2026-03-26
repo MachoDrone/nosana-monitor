@@ -751,8 +751,8 @@ async function handleDashboardGet(token, env) {
         const seen = tr.dataset.seen;
         const heart = tr.querySelector('.hb-heart');
         if (host && seen && heart) {
-          curr[host] = seen;
-          if (prev[host] && prev[host] !== seen) {
+          curr[host] = prev[host] && Number(prev[host]) > Number(seen) ? prev[host] : seen;
+          if (prev[host] && Number(seen) > Number(prev[host])) {
             heart.classList.add('pulse');
             heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
             pulsed++;
