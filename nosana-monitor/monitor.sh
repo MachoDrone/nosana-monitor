@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.05.4"
+VERSION="0.06.0"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -654,6 +654,10 @@ print(b''.join(reversed(o)).decode())
           _dash_s="RESTARTING"
         else
           _dash_s="QUEUED"
+          # Fetch queue position immediately when first entering QUEUED
+          if [ "$LAST_DASH_STATE" != "QUEUED" ]; then
+            check_queue_position
+          fi
           # Get real queue entry time from blockchain (most recent tx = Work call)
           if [ "$LAST_DASH_STATE" != "QUEUED" ] || [ "${STATE_SINCE:-0}" -eq 0 ] 2>/dev/null; then
             _queue_time=$(rpc_curl -X POST "$SOLANA_RPC" \
