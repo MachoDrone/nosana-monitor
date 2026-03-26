@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.07.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.07.2
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -135,7 +135,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob, extIp, intIp } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Key by nodeAddress (unique per GPU) if available, otherwise host name
@@ -192,6 +192,8 @@ async function handleStatusPost(token, request, env) {
     sysEnv: sysEnv || (prev && prev.sysEnv) || '',
     gpuName: gpuName || (prev && prev.gpuName) || '',
     runningJob: runningJob || (prev && prev.runningJob) || '',
+    extIp: extIp || (prev && prev.extIp) || '',
+    intIp: intIp || (prev && prev.intIp) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -441,6 +443,7 @@ async function handleDashboardGet(token, env) {
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
         <td class="tier">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${h.hostName || name}</td>
+        <td class="ip"><span class="ip-m-dot">\u{2022}</span><span class="ip-m-full">${h.extIp || '-'} / ${h.intIp || '-'}</span><span class="ip-m-ext">${h.extIp ? h.extIp.split('.').pop() : '-'}</span><span class="ip-m-int">${h.intIp ? h.intIp.split('.').pop() : '-'}</span></td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
@@ -542,6 +545,12 @@ async function handleDashboardGet(token, env) {
     td.running-job a{color:#60a5fa;text-decoration:none}
     td.running-job a:hover{text-decoration:underline}
     td.sol{font-size:11px;color:#7B3FCC}
+    td.ip{font-size:11px;color:#888}
+    .ip-m-full,.ip-m-ext,.ip-m-int{display:none}
+    body.ip-full .ip-m-dot{display:none}body.ip-full .ip-m-full{display:inline}
+    body.ip-ext .ip-m-dot{display:none}body.ip-ext .ip-m-ext{display:inline}
+    body.ip-int .ip-m-dot{display:none}body.ip-int .ip-m-int{display:inline}
+    .ip-toggle{cursor:pointer;font-size:9px;vertical-align:middle;line-height:1}
     td.nos,td.stakedNos{font-size:11px;color:#15803d}
     .actions{margin:16px 0}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
@@ -612,6 +621,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="seen" data-type="num"><div>Monitor HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="tier" data-type="string"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
+        <th data-col="ip" data-type="string"><div>IP <span class="ip-toggle" id="ipToggle">\u{1F504}</span></div></th>
         <th data-col="node" data-type="string"><div class="ml2">Host<br>Address</div></th>
         <th data-col="sol" data-type="num"><div>SOL</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
@@ -744,6 +754,23 @@ async function handleDashboardGet(token, env) {
         document.body.classList.toggle('hb-compact');
         const cur = document.body.classList.contains('hb-compact') ? 'compact' : 'full';
         localStorage.setItem('nosana-hb-mode', cur);
+      });
+    })();
+
+    /* ---- IP toggle (cycles: dot → full → ext octet → int octet) ---- */
+    (function() {
+      const modes = ['dot', 'full', 'ext', 'int'];
+      const classes = ['', 'ip-full', 'ip-ext', 'ip-int'];
+      let idx = modes.indexOf(localStorage.getItem('nosana-ip-mode') || 'dot');
+      if (idx < 0) idx = 0;
+      if (classes[idx]) document.body.classList.add(classes[idx]);
+      const tog = document.getElementById('ipToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (classes[idx]) document.body.classList.remove(classes[idx]);
+        idx = (idx + 1) % modes.length;
+        if (classes[idx]) document.body.classList.add(classes[idx]);
+        localStorage.setItem('nosana-ip-mode', modes[idx]);
       });
     })();
 
@@ -985,10 +1012,10 @@ async function handleDashboardGet(token, env) {
         currentSort = 'host';
         sortDir = 1;
         localStorage.removeItem('nosana-sort');
-        addArrow(headers[2], sortDir);
+        addArrow(headers[3], sortDir);
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => (a.children[2] ? a.children[2].textContent.trim() : '').localeCompare(b.children[2] ? b.children[2].textContent.trim() : ''));
+        rows.sort((a, b) => (a.children[3] ? a.children[3].textContent.trim() : '').localeCompare(b.children[3] ? b.children[3].textContent.trim() : ''));
         rows.forEach(r => tbody.appendChild(r));
       }
 
@@ -996,7 +1023,7 @@ async function handleDashboardGet(token, env) {
       if (resetBtn) resetBtn.addEventListener('click', resetSort);
 
       // Restore saved sort or default to PC
-      let initialIdx = 2;
+      let initialIdx = 3;
       if (savedSort) {
         headers.forEach((th, idx) => { if (th.dataset.col === savedSort.col) initialIdx = idx; });
       }

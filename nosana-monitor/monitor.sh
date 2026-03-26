@@ -223,11 +223,11 @@ rpc_curl() {
 # Dashboard push: send host status to Cloudflare Worker
 dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
-  _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"; _sol="${17}"; _nos="${18}"; _staked="${19}"; _minstake="${20}"; _cpu="${21}"; _nvidiadrv="${22}"; _cuda="${23}"; _sysenv="${24}"; _gpuname="${25}"; _runjob="${26}"
+  _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"; _sol="${17}"; _nos="${18}"; _staked="${19}"; _minstake="${20}"; _cpu="${21}"; _nvidiadrv="${22}"; _cuda="${23}"; _sysenv="${24}"; _gpuname="${25}"; _runjob="${26}"; _extip="${27}"; _intip="${28}"
   _host="${HOST_NAME:-$(hostname)}"
   _resp=$(curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\"}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\",\"extIp\":\"${_extip}\",\"intIp\":\"${_intip}\"}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
   # Dynamic interval: adjust push frequency based on fleet size (returned by worker)
   if [ "$DASHBOARD_PUSH_OK" = "1" ] && [ -n "$_resp" ]; then
     _new_interval=$(echo "$_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('recommendedInterval',''))" 2>/dev/null || echo "")
@@ -297,6 +297,21 @@ for line in sys.stdin:
   if [ -n "$GPU_PHYSICAL_ID" ]; then
     echo "  GPU ID: ${GPU_PHYSICAL_ID} (physical)"
   fi
+fi
+
+# Internal IP: resolve hostname from Docker API via DNS
+INTERNAL_IP=""
+_docker_hostname=$(curl -sf --unix-socket /var/run/docker.sock http://localhost/info 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Name',''))" 2>/dev/null || echo "")
+if [ -n "$_docker_hostname" ]; then
+  INTERNAL_IP=$(python3 -c "import socket; print(socket.gethostbyname('${_docker_hostname}'))" 2>/dev/null || echo "")
+  if [ -n "$INTERNAL_IP" ]; then
+    echo "  Internal IP: ${INTERNAL_IP}"
+  fi
+fi
+
+# Auto-detect hostname if not set
+if [ -z "$HOST_NAME" ] && [ -n "$_docker_hostname" ]; then
+  HOST_NAME="$_docker_hostname"
 fi
 
 # Monitor loop
@@ -799,6 +814,8 @@ print(b''.join(reversed(o)).decode())
       _dash_cuda=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('gpus',{}).get('runtime_version',''))" 2>/dev/null || echo "")
       _dash_sysenv=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('system_environment',''))" 2>/dev/null || echo "")
       _dash_gpuname=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['name'] if devs else '')" 2>/dev/null || echo "")
+      _dash_extip=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('network',{}).get('ip',''))" 2>/dev/null || echo "")
+      _dash_intip="${INTERNAL_IP:-}"
       # Running job address from Solana RPC (already queried)
       if [ -n "${_run_addr:-}" ]; then
         LAST_JOB_ADDR="$_run_addr"
@@ -826,6 +843,8 @@ print(b''.join(reversed(o)).decode())
       _dash_cuda=""
       _dash_sysenv=""
       _dash_gpuname=""
+      _dash_extip=""
+      _dash_intip="${INTERNAL_IP:-}"
       _dash_runningjob="${LAST_JOB_ADDR:-}"
       _dash_stopped=""
     fi
@@ -855,13 +874,13 @@ print(b''.join(reversed(o)).decode())
     fi
     _dash_combined="${_dash_n}:${_dash_q}/${QUEUE_TOTAL:-0}:${_dash_s}"
     if [ "$_dash_combined" != "$LAST_DASHBOARD_STATE" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}" "${MIN_STAKE:-0}" "${_dash_cpu:-}" "${_dash_nvidiadriver:-}" "${_dash_cuda:-}" "${_dash_sysenv:-}" "${_dash_gpuname:-}" "${_dash_runningjob:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}" "${MIN_STAKE:-0}" "${_dash_cpu:-}" "${_dash_nvidiadriver:-}" "${_dash_cuda:-}" "${_dash_sysenv:-}" "${_dash_gpuname:-}" "${_dash_runningjob:-}" "${_dash_extip:-}" "${_dash_intip:-}"
       if [ "$DASHBOARD_PUSH_OK" = "1" ]; then
         LAST_DASHBOARD_PUSH=$NOW
         LAST_DASHBOARD_STATE="$_dash_combined"
       fi
     elif [ $(( NOW - LAST_DASHBOARD_PUSH )) -ge "$DASHBOARD_INTERVAL" ]; then
-      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}" "${MIN_STAKE:-0}" "${_dash_cpu:-}" "${_dash_nvidiadriver:-}" "${_dash_cuda:-}" "${_dash_sysenv:-}" "${_dash_gpuname:-}" "${_dash_runningjob:-}"
+      dashboard_push "$_dash_n" "$_dash_q" "$_dash_s" "$_dash_v" "$_dash_dl" "$_dash_ul" "$_dash_ping" "$_dash_disk" "$_dash_gpu" "$LAST_STATUS" "$_dash_ram" "$_dash_gpuid" "$_dash_rewards" "$_dash_jobstart" "$_dash_jobtimeout" "${QUEUE_TOTAL:-${SPECS_QUEUE_TOTAL:-}}" "${BALANCE_SOL:-}" "${BALANCE_NOS:-}" "${STAKED_NOS:-}" "${MIN_STAKE:-0}" "${_dash_cpu:-}" "${_dash_nvidiadriver:-}" "${_dash_cuda:-}" "${_dash_sysenv:-}" "${_dash_gpuname:-}" "${_dash_runningjob:-}" "${_dash_extip:-}" "${_dash_intip:-}"
       if [ "$DASHBOARD_PUSH_OK" = "1" ]; then LAST_DASHBOARD_PUSH=$NOW; fi
     fi
   fi
