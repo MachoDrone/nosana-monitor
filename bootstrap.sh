@@ -174,28 +174,19 @@ git clone --depth 1 -q -b "$REPO_BRANCH" "$REPO_URL" /tmp/nosana-monitor
 print_ok "Source code ready."
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  STEP 2/6 — Cloudflare account and login
+#  STEP 2/6 — Cloudflare account and API token
 # ═══════════════════════════════════════════════════════════════════════════
 
-print_header "Step 2/6 — Cloudflare account and login"
+print_header "Step 2/6 — Cloudflare account and API token"
 
 echo -e "  ${BOLD}If you haven't created a Cloudflare account yet:${NC}"
 echo ""
 echo -e "    1. Open ${CYAN}https://dash.cloudflare.com/sign-up${NC} in your browser"
 echo -e "    2. Enter your email and choose a password"
-echo -e "    3. Check your inbox for a verification email from Cloudflare"
-echo -e "    4. Click the verification link in that email"
-echo -e "    5. Cloudflare will ask you to choose a ${BOLD}workers.dev subdomain${NC}"
-echo ""
-echo -e "  ${YELLOW}Important:${NC} The subdomain you choose becomes part of your public"
-echo -e "  dashboard URL. For example, if you pick ${CYAN}gpu-team${NC}, your URL will be:"
-echo ""
-echo -e "    https://your-worker.${CYAN}gpu-team${NC}.workers.dev/d/your-token"
-echo -e "                        ${YELLOW}^^^^^^^^${NC}"
-echo -e "                        ${YELLOW}this is your subdomain${NC}"
-echo ""
-echo -e "  ${YELLOW}Do NOT accept a default that contains your name or email.${NC}"
-echo -e "  Pick something generic you're comfortable sharing."
+echo -e "    3. Verify you are human and click Submit"
+echo -e "    4. ${BOLD}Stop${NC} — go to your email inbox and click the verification link"
+echo -e "    5. You'll land on the Cloudflare dashboard"
+echo -e "    6. Click ${BOLD}Skip${NC} through the onboarding questions"
 echo ""
 echo -e "  ${YELLOW}You do NOT need to:${NC}"
 echo -e "    - Add a domain"
@@ -209,77 +200,59 @@ echo -en "  Press ${BOLD}Enter${NC} when your Cloudflare account is ready... "
 read -r
 
 echo ""
-echo -e "  Now we'll connect to your Cloudflare account."
-echo -e "  Wrangler will display a URL. Open it in your browser"
-echo -e "  and click ${BOLD}Allow${NC} to grant access."
+echo -e "  ${BOLD}Now we need an API token so this script can set up your Worker.${NC}"
 echo ""
-echo -en "  Press ${BOLD}Enter${NC} to open the login... "
-read -r
+echo -e "  In the Cloudflare dashboard:"
+echo ""
+echo -e "    1. Click your profile icon (top right) → ${BOLD}My Profile${NC}"
+echo -e "    2. Click the ${BOLD}API Tokens${NC} tab"
+echo -e "    3. Click ${BOLD}Create Token${NC}"
+echo -e "    4. Find ${BOLD}Edit Cloudflare Workers${NC} and click ${BOLD}Use template${NC}"
+echo -e "    5. Under Account Resources, select your account"
+echo -e "    6. Under Zone Resources, select ${BOLD}All zones${NC}"
+echo -e "    7. Click ${BOLD}Continue to summary${NC}"
+echo -e "    8. Click ${BOLD}Create Token${NC}"
+echo -e "    9. ${BOLD}Copy the token${NC} — you will only see it once"
+echo ""
+echo -e "  ${YELLOW}The token is a long string starting with something like: Abc1D2...${NC}"
 echo ""
 
-# Check if already logged in
-WHOAMI_OUTPUT=$(wrangler whoami 2>&1 || true)
-if echo "$WHOAMI_OUTPUT" | grep -q "Account ID"; then
-    print_ok "Already logged in to Cloudflare."
-else
-    wrangler login
-    echo ""
-    WHOAMI_OUTPUT=$(wrangler whoami 2>&1 || true)
-    if echo "$WHOAMI_OUTPUT" | grep -q "Account ID"; then
-        print_ok "Cloudflare login successful."
-    else
-        echo -e "  ${RED}Login failed. Run the bootstrap again to retry.${NC}"
-        exit 1
+while true; do
+    prompt_with_default "Paste your API token" ""
+    CF_API_TOKEN="$REPLY"
+    if [[ -z "$CF_API_TOKEN" ]]; then
+        echo -e "  ${RED}Token cannot be empty.${NC}"
+        continue
     fi
-fi
+    # Verify the token works
+    print_info "Verifying token..."
+    export CLOUDFLARE_API_TOKEN="$CF_API_TOKEN"
+    WHOAMI_OUTPUT=$(wrangler whoami 2>&1 || true)
+    if echo "$WHOAMI_OUTPUT" | grep -qi "account"; then
+        print_ok "Token verified."
+        break
+    else
+        echo -e "  ${RED}Token verification failed. Check that you copied the full token.${NC}"
+        echo -e "  ${YELLOW}Output: $(echo "$WHOAMI_OUTPUT" | tail -1)${NC}"
+    fi
+done
 
-# Parse account info
+# Parse account ID
 ACCOUNT_LINES=$(echo "$WHOAMI_OUTPUT" | grep -E '^\|.*\|.*[a-f0-9]{32}' || true)
 if [[ -z "$ACCOUNT_LINES" ]]; then
     ACCOUNT_LINES=$(echo "$WHOAMI_OUTPUT" | grep -E '[a-f0-9]{32}' || true)
 fi
 
-ACCOUNT_COUNT=$(echo "$ACCOUNT_LINES" | grep -c '[a-f0-9]\{32\}' || echo "0")
+ACCOUNT_ID=$(echo "$ACCOUNT_LINES" | grep -oE '[a-f0-9]{32}' | head -1 || true)
 
-if [[ "$ACCOUNT_COUNT" -eq 0 ]]; then
+if [[ -z "$ACCOUNT_ID" ]]; then
     echo ""
     echo -e "  ${YELLOW}Could not auto-detect your Account ID.${NC}"
-    echo -e "  You can find it in the Cloudflare dashboard under"
-    echo -e "  ${CYAN}Workers & Pages → Overview${NC} (right sidebar)."
+    echo -e "  You can find it in the Cloudflare dashboard:"
+    echo -e "  ${CYAN}Workers & Pages${NC} → right sidebar shows Account ID."
     echo ""
     prompt_with_default "Enter your Cloudflare Account ID" ""
     ACCOUNT_ID="$REPLY"
-    ACCOUNT_NAME="(manually entered)"
-elif [[ "$ACCOUNT_COUNT" -eq 1 ]]; then
-    ACCOUNT_ID=$(echo "$ACCOUNT_LINES" | grep -oE '[a-f0-9]{32}' | head -1)
-    ACCOUNT_NAME=$(echo "$ACCOUNT_LINES" | sed 's/|/\n/g' | sed -n '2p' | xargs)
-    ACCOUNT_NAME="${ACCOUNT_NAME:-Cloudflare Account}"
-    print_ok "Found account: ${BOLD}${ACCOUNT_NAME}${NC}"
-else
-    echo ""
-    echo -e "  ${YELLOW}Multiple Cloudflare accounts found:${NC}"
-    echo ""
-    INDEX=0
-    declare -a ACCOUNT_IDS=()
-    declare -a ACCOUNT_NAMES=()
-    while IFS= read -r line; do
-        INDEX=$((INDEX + 1))
-        AID=$(echo "$line" | grep -oE '[a-f0-9]{32}' | head -1)
-        ANAME=$(echo "$line" | sed 's/|/\n/g' | sed -n '2p' | xargs)
-        ANAME="${ANAME:-Account $INDEX}"
-        ACCOUNT_IDS+=("$AID")
-        ACCOUNT_NAMES+=("$ANAME")
-        echo -e "    ${BOLD}${INDEX})${NC} ${ANAME} (${AID})"
-    done <<< "$ACCOUNT_LINES"
-    echo ""
-    prompt_with_default "Select account number" "1"
-    SELECTION=$((REPLY - 1))
-    if [[ $SELECTION -lt 0 || $SELECTION -ge $INDEX ]]; then
-        echo -e "  ${RED}Invalid selection.${NC}"
-        exit 1
-    fi
-    ACCOUNT_ID="${ACCOUNT_IDS[$SELECTION]}"
-    ACCOUNT_NAME="${ACCOUNT_NAMES[$SELECTION]}"
 fi
 
 echo -e "  ${GREEN}Account ID: ${ACCOUNT_ID}${NC}"
