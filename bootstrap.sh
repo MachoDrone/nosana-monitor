@@ -264,13 +264,8 @@ echo -e "  ${GREEN}Account ID: ${ACCOUNT_ID}${NC}"
 
 print_header "Step 3/6 — Name your dashboard"
 
-echo -e "  Your dashboard URL has three parts:"
-echo ""
-echo -e "    https://${CYAN}____________${NC}.${CYAN}your-subdomain${NC}.workers.dev/d/${CYAN}your-token${NC}"
-echo -e "            ${YELLOW}↑ worker name${NC}  ${YELLOW}↑ set during acct creation${NC}     ${YELLOW}↑ fleet token${NC}"
-echo -e "            ${YELLOW}  (step 3)${NC}     ${YELLOW}  (already done)${NC}               ${YELLOW}  (step 6)${NC}"
-echo ""
-echo -e "  Right now you're choosing the ${BOLD}worker name${NC} — the first part."
+echo -e "  Choose a name for your Worker. This is just an identifier —"
+echo -e "  your full dashboard URL will be shown after deployment."
 echo -e "  Lowercase letters, numbers, and hyphens only."
 echo ""
 
@@ -282,8 +277,6 @@ while true; do
     fi
 done
 
-echo ""
-echo -e "  ${GREEN}Preview:${NC} https://${BOLD}${WORKER_NAME}${NC}.xxxxx.workers.dev"
 print_ok "Worker name: ${BOLD}${WORKER_NAME}${NC}"
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -457,11 +450,6 @@ echo ""
 echo -e "  ${BOLD}Your dashboard URL:${NC}"
 echo ""
 echo -e "    ${GREEN}${DASHBOARD_URL}${NC}"
-echo ""
-echo -e "    https://${CYAN}${WORKER_NAME}${NC}.xxxxx.workers.dev/d/${CYAN}${FLEET_TOKEN}${NC}"
-echo -e "            ${YELLOW}^^^^^^^^^^${NC}                        ${YELLOW}^^^^^^^^^^${NC}"
-echo -e "            ${YELLOW}worker name${NC}                       ${YELLOW}fleet token${NC}"
-echo -e "            ${YELLOW}(you chose)${NC}                       ${YELLOW}(you chose)${NC}"
 echo ""
 
 # --- GitHub Actions note ---
