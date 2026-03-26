@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.3"
+VERSION="0.07.4"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -327,6 +327,8 @@ LAST_DASH_JOBTIMEOUT="0"
 RUNNING_STATE_FILE="/state/running-since"
 RUNNING_SINCE=0  # always re-fetch from blockchain on startup
 LAST_JOB_ADDR_FILE="/state/last-job-addr"
+CACHED_RUN_ADDR=""   # cached RunAccount address — avoids getProgramAccounts when RUNNING
+CACHED_JOB_ADDR=""   # cached JobAccount address — avoids re-parsing RPC response
 LAST_JOB_ADDR=$(cat "$LAST_JOB_ADDR_FILE" 2>/dev/null || echo "")
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
@@ -690,17 +692,48 @@ else:
       # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
       if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
       LAST_SOLANA_CHECK=$NOW
-      _rpc_resp=$(rpc_curl -X POST "$SOLANA_RPC" \
-        -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
-      _run_count=$(echo "$_rpc_resp" | python3 -c "
+      _run_count=""
+      _rpc_resp=""
+
+      # Phase 1 optimization: if we have a cached RunAccount address, try getAccountInfo first (light call)
+      if [ -n "$CACHED_RUN_ADDR" ]; then
+        _acct_resp=$(rpc_curl -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${CACHED_RUN_ADDR}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":0,\"length\":0}}]}" 2>/dev/null || echo "")
+        _acct_exists=$(echo "$_acct_resp" | python3 -c "
+import sys,json
+r=json.load(sys.stdin)
+if 'error' in r: print('RPC_ERROR')
+elif r.get('result',{}).get('value') is not None: print('1')
+else: print('0')
+" 2>/dev/null || echo "")
+        if [ "$_acct_exists" = "1" ]; then
+          _run_count="1"
+          _run_addr="$CACHED_RUN_ADDR"
+        elif [ "$_acct_exists" = "0" ]; then
+          # RunAccount closed (job ended) — clear cache, fall through to getProgramAccounts
+          CACHED_RUN_ADDR=""
+        fi
+        # If RPC_ERROR, fall through to getProgramAccounts
+      fi
+
+      # Fall back to getProgramAccounts if no cached address or cache miss (heavy call)
+      if [ -z "$_run_count" ]; then
+        _rpc_resp=$(rpc_curl -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
+        _run_count=$(echo "$_rpc_resp" | python3 -c "
 import sys,json
 r=json.load(sys.stdin)
 if 'error' in r:
     print('RPC_ERROR')
+elif len(r.get('result',[])) == 0 and not r.get('result') == []:
+    # Empty result could be silent rate limit — check if result key exists
+    print(len(r.get('result',[])))
 else:
     print(len(r.get('result',[])))
 " 2>/dev/null || echo "")
+      fi
       RPC_CACHED="false"
       if [ "$_run_count" = "RPC_ERROR" ]; then
         # Rate limited or RPC error — keep cached state
@@ -712,7 +745,11 @@ else:
         _dash_s="RUNNING"
         # Get real job start time from blockchain (RunAccount creation tx)
         if [ "$RUNNING_SINCE" -eq 0 ] 2>/dev/null; then
-          _run_addr=$(echo "$_rpc_resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['pubkey'])" 2>/dev/null || echo "")
+          if [ -z "$_run_addr" ]; then
+            _run_addr=$(echo "$_rpc_resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['pubkey'])" 2>/dev/null || echo "")
+          fi
+          # Cache RunAccount address for lightweight getAccountInfo on subsequent checks
+          if [ -n "$_run_addr" ]; then CACHED_RUN_ADDR="$_run_addr"; fi
           if [ -n "$_run_addr" ]; then
             _block_time=$(rpc_curl -X POST "$SOLANA_RPC" \
               -H "Content-Type: application/json" \
@@ -730,6 +767,7 @@ else:
         fi
         _dash_jobstart="$RUNNING_SINCE"
         # Get timeout from JobAccount every check (deployer may extend mid-job)
+        if [ -n "$_rpc_resp" ]; then
           _job_addr=$(echo "$_rpc_resp" | python3 -c "
 import sys,json,base64
 r=json.load(sys.stdin)['result'][0]
@@ -742,6 +780,9 @@ for x in b:
  else:break
 print(b''.join(reversed(o)).decode())
 " 2>/dev/null || echo "")
+          if [ -n "$_job_addr" ]; then CACHED_JOB_ADDR="$_job_addr"; fi
+        fi
+        _job_addr="${CACHED_JOB_ADDR:-}"
           if [ -n "$_job_addr" ]; then
             _job_acct=$(rpc_curl -X POST "$SOLANA_RPC" \
               -H "Content-Type: application/json" \
@@ -754,6 +795,8 @@ print(b''.join(reversed(o)).decode())
       elif [ -n "$_run_count" ]; then
         # RPC responded, no RunAccount — not running
         RUNNING_SINCE=0
+        CACHED_RUN_ADDR=""
+        CACHED_JOB_ADDR=""
         rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
         if [ "${CURRENT_STATE}" = "RESTARTING" ]; then
           _dash_s="RESTARTING"
