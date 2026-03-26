@@ -437,6 +437,7 @@ async function handleDashboardGet(token, env) {
     .map(
       ([name, h]) => `
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
+        <td class="edit-col" style="display:none;padding:2px"><input type="checkbox" class="row-select" value="${name}"></td>
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
         <td class="tier">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
         <td class="host">${h.hostName || name}</td>
@@ -592,6 +593,7 @@ async function handleDashboardGet(token, env) {
   </div>
   <div class="legend">Tap column header to sort <span id="sortReset" style="cursor:pointer">\u{1F191}</span></div>
   ${totalHosts > 0 ? `
+  <div style="text-align:right;margin-bottom:2px"><span id="editBtn" style="cursor:pointer;font-size:12px;color:#555" title="Edit mode">\u{270F}\u{FE0F}</span></div>
   <div id="gatherBar" class="tap" data-label="${completeHosts < totalHosts ? 'Gathering data from nodes... ' + completeHosts + '/' + totalHosts : 'All ' + totalHosts + ' nodes reporting'}" style="margin-bottom:8px">
     <div style="height:4px;position:relative">
       ${completeHosts < totalHosts
@@ -606,6 +608,7 @@ async function handleDashboardGet(token, env) {
       : `<table id="fleet">
     <thead>
       <tr>
+        <th class="edit-col" style="display:none;padding:2px"><input type="checkbox" id="selectAll"></th>
         <th data-col="seen" data-type="num"><div>Monitor HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="tier" data-type="string"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
@@ -639,6 +642,11 @@ async function handleDashboardGet(token, env) {
   </table>`
   }
 
+  <div id="editBar" style="display:none;margin:8px 0;padding:8px;background:#1a1a1a;border:1px solid #333;border-radius:6px">
+    <button id="editRemove" style="font-size:11px;padding:4px 10px">Remove Selected</button>
+    <button id="editCancel" style="font-size:11px;padding:4px 10px;margin-left:8px">Cancel</button>
+    <span id="editCount" style="font-size:11px;color:#888;margin-left:8px"></span>
+  </div>
   <div class="actions">
     <div class="btn-row">
       <select id="modeSelect" style="background:#222;color:#15803d;border:1px solid #15803d;border-radius:6px;padding:8px 10px;font-size:12px">
@@ -812,6 +820,59 @@ async function handleDashboardGet(token, env) {
       const pulsed = toPulse.length;
       if (pulsed) console.log('HB pulse: ' + pulsed + ' host(s)');
       localStorage.setItem('nosana-hb-seen', JSON.stringify(curr));
+    })();
+
+    /* ---- Edit mode (checkboxes) ---- */
+    (function() {
+      const editBtn = document.getElementById('editBtn');
+      const editBar = document.getElementById('editBar');
+      const editRemove = document.getElementById('editRemove');
+      const editCancel = document.getElementById('editCancel');
+      const editCount = document.getElementById('editCount');
+      const selectAll = document.getElementById('selectAll');
+      if (!editBtn) return;
+      let editMode = false;
+
+      function toggleEdit() {
+        editMode = !editMode;
+        document.querySelectorAll('.edit-col').forEach(el => el.style.display = editMode ? '' : 'none');
+        editBar.style.display = editMode ? '' : 'none';
+        editBtn.style.color = editMode ? '#4ade80' : '#555';
+        if (!editMode) {
+          document.querySelectorAll('.row-select').forEach(cb => cb.checked = false);
+          if (selectAll) selectAll.checked = false;
+        }
+        updateCount();
+      }
+
+      function updateCount() {
+        const checked = document.querySelectorAll('.row-select:checked').length;
+        editCount.textContent = checked ? checked + ' selected' : '';
+      }
+
+      editBtn.addEventListener('click', toggleEdit);
+      editCancel.addEventListener('click', toggleEdit);
+
+      if (selectAll) selectAll.addEventListener('change', () => {
+        document.querySelectorAll('.row-select').forEach(cb => cb.checked = selectAll.checked);
+        updateCount();
+      });
+
+      document.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', updateCount));
+
+      editRemove.addEventListener('click', async () => {
+        const selected = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
+        if (!selected.length) return;
+        if (!confirm('Remove ' + selected.length + ' host(s)?\\n\\nActive monitors will re-add themselves.')) return;
+        try {
+          const res = await fetch('/d/' + TOKEN + '/purge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hosts: selected })
+          });
+          if (res.ok) location.reload();
+        } catch {}
+      });
     })();
 
     /* ---- Market slug click-to-refresh ---- */
