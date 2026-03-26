@@ -831,18 +831,36 @@ async function handleDashboardGet(token, env) {
       const editCount = document.getElementById('editCount');
       const selectAll = document.getElementById('selectAll');
       if (!editBtn) return;
-      let editMode = false;
+      let editMode = localStorage.getItem('nosana-edit-mode') === '1';
 
-      function toggleEdit() {
-        editMode = !editMode;
+      function applyEditMode() {
         document.querySelectorAll('.edit-col').forEach(el => el.style.display = editMode ? '' : 'none');
         editBar.style.display = editMode ? '' : 'none';
         editBtn.style.color = editMode ? '#4ade80' : '#555';
+        // Restore checked boxes
+        if (editMode) {
+          const saved = JSON.parse(localStorage.getItem('nosana-edit-checked') || '[]');
+          document.querySelectorAll('.row-select').forEach(cb => {
+            if (saved.includes(cb.value)) cb.checked = true;
+          });
+        }
+        updateCount();
+      }
+
+      function saveChecked() {
+        const checked = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
+        localStorage.setItem('nosana-edit-checked', JSON.stringify(checked));
+      }
+
+      function toggleEdit() {
+        editMode = !editMode;
+        localStorage.setItem('nosana-edit-mode', editMode ? '1' : '0');
         if (!editMode) {
           document.querySelectorAll('.row-select').forEach(cb => cb.checked = false);
           if (selectAll) selectAll.checked = false;
+          localStorage.removeItem('nosana-edit-checked');
         }
-        updateCount();
+        applyEditMode();
       }
 
       function updateCount() {
@@ -855,10 +873,14 @@ async function handleDashboardGet(token, env) {
 
       if (selectAll) selectAll.addEventListener('change', () => {
         document.querySelectorAll('.row-select').forEach(cb => cb.checked = selectAll.checked);
+        saveChecked();
         updateCount();
       });
 
-      document.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', updateCount));
+      document.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', () => { saveChecked(); updateCount(); }));
+
+      // Restore edit mode on page load
+      applyEditMode();
 
       editRemove.addEventListener('click', async () => {
         const selected = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
@@ -1003,6 +1025,7 @@ async function handleDashboardGet(token, env) {
         th.addEventListener('click', () => {
           const type = th.dataset.type;
           const col = th.dataset.col;
+          if (!col) return; // skip checkbox column
 
           if (currentSort === col) {
             sortDir *= -1;
