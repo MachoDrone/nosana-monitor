@@ -457,7 +457,7 @@ async function handleDashboardGet(token, env) {
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 2s linear infinite}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
     .state-running{color:#3b82f6}
