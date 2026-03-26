@@ -530,8 +530,8 @@ async function handleDashboardGet(token, env) {
     body.sys-expanded .sys-m-full{display:inline}
     body.sys-expanded .sys-m-compact{display:none}
     .hb-m-compact{display:none}
-    .hb-heart.pulse{animation:cardiacPulse 0.8s ease-out 1}
-    @keyframes cardiacPulse{0%{transform:scale(1)}15%{transform:scale(1.4)}30%{transform:scale(1)}45%{transform:scale(1.25)}60%{transform:scale(1)}100%{transform:scale(1)}}
+    .hb-heart.pulse{animation:cardiacPulse 1.5s ease-out 1}
+    @keyframes cardiacPulse{0%{transform:scale(1)}8%{transform:scale(1.8)}16%{transform:scale(1)}24%{transform:scale(1.5)}32%{transform:scale(1)}40%{transform:scale(1.3)}48%{transform:scale(1)}100%{transform:scale(1)}}
     body.hb-compact .hb-m-full{display:none}
     body.hb-compact .hb-m-compact{display:inline}
     .gpu-m-dot{display:none}
