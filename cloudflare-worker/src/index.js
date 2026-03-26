@@ -457,12 +457,12 @@ async function handleDashboardGet(token, env) {
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 4s linear infinite}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 6s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
-    .ring-fill{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:31.4;animation:solidFill 4s linear infinite}
+    .ring-fill{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:-31.4;animation:solidFill 6s linear infinite}
     .ring-fill{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
-    @keyframes dashTravel{0%{stroke-dashoffset:0;opacity:1}45%{stroke-dashoffset:-31.4;opacity:1}50%{opacity:0}95%{opacity:0}100%{stroke-dashoffset:0;opacity:1}}
-    @keyframes solidFill{0%{stroke-dashoffset:-31.4}50%{stroke-dashoffset:-31.4}95%{stroke-dashoffset:0}100%{stroke-dashoffset:-31.4}}
+    @keyframes dashTravel{0%{stroke-dashoffset:0}50%{stroke-dashoffset:-62.8}100%{stroke-dashoffset:-62.8}}
+    @keyframes solidFill{0%{stroke-dashoffset:-31.4}50%{stroke-dashoffset:-31.4}90%{stroke-dashoffset:0}100%{stroke-dashoffset:-31.4}}
     .state-running{color:#3b82f6}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
