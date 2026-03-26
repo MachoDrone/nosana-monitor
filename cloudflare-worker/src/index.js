@@ -463,7 +463,7 @@ async function handleDashboardGet(token, env) {
     @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
     .state-running{color:#3b82f6}
     .queue-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
-    .queue-ring .state-queued{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#4ade80;font-size:9px}
+    .queue-ring .state-queued{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scaleX(0.75);color:#4ade80;font-size:9px}
     .queue-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .qring-solid{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
