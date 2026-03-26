@@ -613,7 +613,7 @@ async function handleDashboardGet(token, env) {
       <span id="fastInfo" style="cursor:pointer;font-size:14px;color:#888;margin-right:16px" title="Info">\u{24D8}</span>
       <button id="pushBtn">Enable Push</button>
       <button id="soundBtn">Enable Sound</button>
-      <button id="installBtn" style="display:none">Install App</button>
+      <button id="installBtn" style="display:none">Install App</button><script>if(localStorage.getItem('nosana-install-avail')==='1')document.getElementById('installBtn').style.display=''</script>
     </div>
     <div id="fastStatus" style="font-size:11px;color:#666;margin-top:4px;display:none"></div>
     <div class="status-msg" id="statusMsg"></div>
@@ -1130,6 +1130,7 @@ async function handleDashboardGet(token, env) {
       e.preventDefault();
       deferredPrompt = e;
       installBtn.style.display = '';
+      localStorage.setItem('nosana-install-avail', '1');
     });
     installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) return;
@@ -1143,6 +1144,7 @@ async function handleDashboardGet(token, env) {
     });
     window.addEventListener('appinstalled', () => {
       installBtn.style.display = 'none';
+      localStorage.removeItem('nosana-install-avail');
     });
 
     /* ---- Cache + controlled refresh ---- */
