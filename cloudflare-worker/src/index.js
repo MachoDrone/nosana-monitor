@@ -587,7 +587,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
         <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
-        <th data-col="rewards" data-type="num"><div class="ml2">Rewards<br>to claim</div></th>
+        <th data-col="rewards" data-type="num"><div class="ml2">Rewards<br><span style="white-space:nowrap">to claim</span></div></th>
         <th data-col="nos" data-type="num"><div>NOS</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
