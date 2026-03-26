@@ -548,7 +548,7 @@ async function handleDashboardGet(token, env) {
 </head>
 <body>
   <div style="display:flex;justify-content:space-between;align-items:center">
-    <h1>Nosana Fleet <span style="font-size:13px;color:#15803d;font-weight:400">— ${hosts.length}</span></h1>
+    <h1>Nosana Fleet <span style="font-size:13px;color:#15803d;font-weight:400">— ${hosts.length} hosts</span></h1>
     <span style="font-size:14px">
       <span id="purgeBtn" style="cursor:pointer" title="Purge stale hosts">\u{267B}\u{FE0F}</span>
     </span>
@@ -825,8 +825,9 @@ async function handleDashboardGet(token, env) {
       const table = document.getElementById('fleet');
       if (!table) return;
       const headers = table.querySelectorAll('th');
-      let currentSort = 'host';
-      let sortDir = 1;
+      const savedSort = JSON.parse(localStorage.getItem('nosana-sort') || 'null');
+      let currentSort = savedSort ? savedSort.col : 'host';
+      let sortDir = savedSort ? savedSort.dir : 1;
 
       function clearArrows() {
         headers.forEach(h => {
@@ -863,6 +864,7 @@ async function handleDashboardGet(token, env) {
       function resetSort() {
         currentSort = 'host';
         sortDir = 1;
+        localStorage.removeItem('nosana-sort');
         addArrow(headers[2], sortDir);
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
@@ -873,8 +875,31 @@ async function handleDashboardGet(token, env) {
       const resetBtn = document.getElementById('sortReset');
       if (resetBtn) resetBtn.addEventListener('click', resetSort);
 
-      // Show default sort arrow on PC column (index 1)
-      addArrow(headers[2], 1);
+      // Restore saved sort or default to PC
+      let initialIdx = 2;
+      if (savedSort) {
+        headers.forEach((th, idx) => { if (th.dataset.col === savedSort.col) initialIdx = idx; });
+      }
+      addArrow(headers[initialIdx], sortDir);
+      // Apply initial sort
+      (function() {
+        const type = headers[initialIdx].dataset.type;
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+          const tdA = a.children[initialIdx];
+          const tdB = b.children[initialIdx];
+          const cellA = tdA ? tdA.textContent.trim() : '';
+          const cellB = tdB ? tdB.textContent.trim() : '';
+          if (type === 'num') {
+            const na = parseFloat((tdA && tdA.dataset.sort) || cellA) || 0;
+            const nb = parseFloat((tdB && tdB.dataset.sort) || cellB) || 0;
+            return (na - nb) * sortDir;
+          }
+          return cellA.localeCompare(cellB) * sortDir;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+      })();
 
       headers.forEach((th, idx) => {
         th.addEventListener('click', () => {
@@ -889,6 +914,7 @@ async function handleDashboardGet(token, env) {
           }
 
           addArrow(th, sortDir);
+          localStorage.setItem('nosana-sort', JSON.stringify({ col: currentSort, dir: sortDir }));
 
           const tbody = table.querySelector('tbody');
           const rows = Array.from(tbody.querySelectorAll('tr'));
