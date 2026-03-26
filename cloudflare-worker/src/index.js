@@ -745,8 +745,7 @@ async function handleDashboardGet(token, env) {
       const prev = JSON.parse(localStorage.getItem('nosana-hb-seen') || '{}');
       const curr = {};
       const rows = document.querySelectorAll('#fleet tbody tr');
-      let pulsed = 0;
-      let delay = 0;
+      const toPulse = [];
       rows.forEach(tr => {
         const host = tr.dataset.host;
         const seen = tr.dataset.seen;
@@ -754,16 +753,25 @@ async function handleDashboardGet(token, env) {
         if (host && seen && heart) {
           curr[host] = prev[host] && Number(prev[host]) > Number(seen) ? prev[host] : seen;
           if (prev[host] && Number(seen) > Number(prev[host])) {
-            const d = delay;
-            setTimeout(() => {
-              heart.classList.add('pulse');
-              heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
-            }, d);
-            delay += 300 + Math.floor(Math.random() * 400);
-            pulsed++;
+            toPulse.push(heart);
           }
         }
       });
+      // Shuffle so pulses don't follow row order
+      for (let i = toPulse.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [toPulse[i], toPulse[j]] = [toPulse[j], toPulse[i]];
+      }
+      let delay = 0;
+      toPulse.forEach(heart => {
+        const d = delay;
+        setTimeout(() => {
+          heart.classList.add('pulse');
+          heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
+        }, d);
+        delay += 300 + Math.floor(Math.random() * 400);
+      });
+      const pulsed = toPulse.length;
       if (pulsed) console.log('HB pulse: ' + pulsed + ' host(s)');
       localStorage.setItem('nosana-hb-seen', JSON.stringify(curr));
     })();
