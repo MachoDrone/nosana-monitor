@@ -330,7 +330,7 @@ LAST_JOB_ADDR_FILE="/state/last-job-addr"
 LAST_JOB_ADDR=$(cat "$LAST_JOB_ADDR_FILE" 2>/dev/null || echo "")
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
-SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
+SOLANA_CHECK_INTERVAL=120  # check Solana RPC every 120s (multiple hosts from same IP need wider spacing)
 LAST_SOLANA_CHECK=0  # 0 = run immediately on first loop
 QUEUE_CHECK_INTERVAL=120  # check queue position every 2min when QUEUED (rate limit safe: 200 hosts × 720/day = 144k, well under public RPC limits)
 LAST_QUEUE_CHECK=0
