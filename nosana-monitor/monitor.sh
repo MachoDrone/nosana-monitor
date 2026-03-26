@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.05.0"
+VERSION="0.05.4"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -682,12 +682,21 @@ print(b''.join(reversed(o)).decode())
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
       fi
       # Override: node/info catches RESTARTING every 5s (faster than 60s RPC check)
-      if [ "${CURRENT_STATE}" = "RESTARTING" ] && [ "$_dash_s" != "RESTARTING" ]; then
+      # Only override if the RPC-derived state is RUNNING (still thinks old job is active)
+      # Don't override QUEUED — if RPC already determined QUEUED, trust it
+      if [ "${CURRENT_STATE}" = "RESTARTING" ] && [ "$_dash_s" = "RUNNING" ]; then
         _dash_s="RESTARTING"
         _dash_jobstart="0"
         _dash_jobtimeout="0"
+        _dash_runningjob=""
         RUNNING_SINCE=0
         rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
+      fi
+      # Always clear duration and job when not RUNNING (prevents stale duration climbing)
+      if [ "$_dash_s" != "RUNNING" ]; then
+        _dash_jobstart="0"
+        _dash_jobtimeout="0"
+        _dash_runningjob=""
       fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_uptime=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uptime',''))" 2>/dev/null || echo "")
