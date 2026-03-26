@@ -204,8 +204,8 @@ echo -e "  ${BOLD}Now we need an API token so this script can set up your Worker
 echo ""
 echo -e "  In the Cloudflare dashboard:"
 echo ""
-echo -e "    1. Click your profile icon (top right) → ${BOLD}My Profile${NC}"
-echo -e "    2. Click the ${BOLD}API Tokens${NC} tab"
+echo -e "    1. Click your profile icon (top right) → ${BOLD}Profile${NC}"
+echo -e "    2. Click ${BOLD}API Tokens${NC} in the left menu"
 echo -e "    3. Click ${BOLD}Create Token${NC}"
 echo -e "    4. Find ${BOLD}Edit Cloudflare Workers${NC} and click ${BOLD}Use template${NC}"
 echo -e "    5. Under Account Resources, select your account"
@@ -255,6 +255,7 @@ if [[ -z "$ACCOUNT_ID" ]]; then
     ACCOUNT_ID="$REPLY"
 fi
 
+export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"
 echo -e "  ${GREEN}Account ID: ${ACCOUNT_ID}${NC}"
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -298,11 +299,11 @@ echo ""
 # --- Create KV namespaces ---
 
 print_info "Creating FLEET_DATA namespace..."
-FLEET_KV_OUTPUT=$(wrangler kv namespace create FLEET_DATA --account-id "$ACCOUNT_ID" 2>&1) || true
+FLEET_KV_OUTPUT=$(wrangler kv namespace create FLEET_DATA 2>&1) || true
 
 if echo "$FLEET_KV_OUTPUT" | grep -qi "already exists\|already being used"; then
     print_warn "FLEET_DATA already exists — reusing it."
-    KV_LIST_OUTPUT=$(wrangler kv namespace list --account-id "$ACCOUNT_ID" 2>&1 || true)
+    KV_LIST_OUTPUT=$(wrangler kv namespace list 2>&1 || true)
     FLEET_KV_ID=$(echo "$KV_LIST_OUTPUT" | grep -B2 "FLEET_DATA" | grep -oE '[a-f0-9]{32}' | head -1 || true)
     if [[ -z "$FLEET_KV_ID" ]]; then
         echo -e "  ${RED}Could not find FLEET_DATA namespace ID.${NC}"
@@ -321,11 +322,11 @@ fi
 print_ok "FLEET_DATA: ${FLEET_KV_ID}"
 
 print_info "Creating PUSH_SUBS namespace..."
-PUSH_KV_OUTPUT=$(wrangler kv namespace create PUSH_SUBS --account-id "$ACCOUNT_ID" 2>&1) || true
+PUSH_KV_OUTPUT=$(wrangler kv namespace create PUSH_SUBS 2>&1) || true
 
 if echo "$PUSH_KV_OUTPUT" | grep -qi "already exists\|already being used"; then
     print_warn "PUSH_SUBS already exists — reusing it."
-    KV_LIST_OUTPUT="${KV_LIST_OUTPUT:-$(wrangler kv namespace list --account-id "$ACCOUNT_ID" 2>&1 || true)}"
+    KV_LIST_OUTPUT="${KV_LIST_OUTPUT:-$(wrangler kv namespace list 2>&1 || true)}"
     PUSH_KV_ID=$(echo "$KV_LIST_OUTPUT" | grep -B2 "PUSH_SUBS" | grep -oE '[a-f0-9]{32}' | head -1 || true)
     if [[ -z "$PUSH_KV_ID" ]]; then
         echo -e "  ${RED}Could not find PUSH_SUBS namespace ID.${NC}"
@@ -403,13 +404,14 @@ print_ok "Configuration written."
 
 # Set VAPID secrets
 print_info "Storing VAPID keys as encrypted Worker secrets..."
-echo "$VAPID_PUBLIC" | wrangler secret put VAPID_PUBLIC_KEY --name "$WORKER_NAME" --account-id "$ACCOUNT_ID" 2>&1 | tail -1
-echo "$VAPID_PRIVATE" | wrangler secret put VAPID_PRIVATE_KEY --name "$WORKER_NAME" --account-id "$ACCOUNT_ID" 2>&1 | tail -1
+cd /tmp/nosana-monitor/cloudflare-worker
+echo "$VAPID_PUBLIC" | wrangler secret put VAPID_PUBLIC_KEY 2>&1 | tail -1
+echo "$VAPID_PRIVATE" | wrangler secret put VAPID_PRIVATE_KEY 2>&1 | tail -1
 print_ok "VAPID secrets stored."
 
 # Deploy
 print_info "Deploying Worker..."
-DEPLOY_OUTPUT=$(cd /tmp/nosana-monitor/cloudflare-worker && wrangler deploy --account-id "$ACCOUNT_ID" 2>&1)
+DEPLOY_OUTPUT=$(cd /tmp/nosana-monitor/cloudflare-worker && wrangler deploy 2>&1)
 echo "$DEPLOY_OUTPUT" | tail -3
 
 WORKER_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.workers\.dev' | head -1)
