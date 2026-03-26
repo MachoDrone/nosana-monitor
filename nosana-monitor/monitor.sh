@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.1"
+VERSION="0.07.2"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -270,6 +270,34 @@ _hash_dec=$(printf '%d' "0x${_hash}")
 STAGGER=$(( _hash_dec % 30 ))
 echo "  Stagger delay: ${STAGGER}s"
 sleep "$STAGGER"
+
+# GPU ID: query host nvidia-smi via Docker socket to get real physical GPU index
+# Uses NVIDIA Container Toolkit injection — any --gpus all container gets nvidia-smi
+GPU_PHYSICAL_ID=""
+_gpu_map=$(docker run --rm --gpus all ubuntu nvidia-smi --query-gpu=index,uuid --format=csv,noheader 2>/dev/null || echo "")
+if [ -n "$_gpu_map" ]; then
+  # Get this node's GPU UUID from health endpoint
+  _node_gpu_uuid=$(curl -sf --max-time 10 "https://${PUBKEY}.node.k8s.prd.nos.ci/node/info" 2>/dev/null | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+devs=d.get('info',{}).get('gpus',{}).get('devices',[])
+if devs: print(devs[0].get('uuid',''))
+" 2>/dev/null || echo "")
+  if [ -n "$_node_gpu_uuid" ]; then
+    GPU_PHYSICAL_ID=$(echo "$_gpu_map" | python3 -c "
+import sys
+uuid='$_node_gpu_uuid'
+for line in sys.stdin:
+    parts=[p.strip() for p in line.strip().split(',')]
+    if len(parts)==2 and parts[1]==uuid:
+        print(parts[0])
+        break
+" 2>/dev/null || echo "")
+  fi
+  if [ -n "$GPU_PHYSICAL_ID" ]; then
+    echo "  GPU ID: ${GPU_PHYSICAL_ID} (physical)"
+  fi
+fi
 
 # Monitor loop
 HEALTH_URL="https://${PUBKEY}.node.k8s.prd.nos.ci/node/info"
@@ -761,7 +789,11 @@ print(b''.join(reversed(o)).decode())
       _dash_disk=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('disk_gb',''))" 2>/dev/null || echo "")
       _dash_gpu=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['name'] if devs else '')" 2>/dev/null || echo "")
       _dash_ram=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('ram_mb',''))" 2>/dev/null || echo "")
-      _dash_gpuid=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['index'] if devs else '')" 2>/dev/null || echo "")
+      if [ -n "$GPU_PHYSICAL_ID" ]; then
+        _dash_gpuid="$GPU_PHYSICAL_ID"
+      else
+        _dash_gpuid=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['index'] if devs else '')" 2>/dev/null || echo "")
+      fi
       _dash_cpu=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('cpu',{}).get('model',''))" 2>/dev/null || echo "")
       _dash_nvidiadriver=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('gpus',{}).get('nvml_driver_version',''))" 2>/dev/null || echo "")
       _dash_cuda=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('gpus',{}).get('runtime_version',''))" 2>/dev/null || echo "")
