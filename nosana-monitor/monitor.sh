@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.5"
+VERSION="0.07.6"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -801,11 +801,38 @@ print(b''.join(reversed(o)).decode())
         LAST_DASH_JOBSTART="$_dash_jobstart"
         LAST_DASH_JOBTIMEOUT="${_dash_jobtimeout:-0}"
       elif [ -n "$_run_count" ]; then
-        # RPC responded, no RunAccount — not running
-        RUNNING_SINCE=0
-        CACHED_RUN_ADDR=""
-        CACHED_JOB_ADDR=""
-        rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
+        # RPC responded, no RunAccount found
+        # Silent rate limit detection: if we were RUNNING and suddenly get 0,
+        # verify with getAccountInfo on cached address before trusting the result
+        if [ "$LAST_DASH_STATE" = "RUNNING" ] && [ "$_run_count" = "0" ] && [ -n "$CACHED_RUN_ADDR" ]; then
+          _verify=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+            -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${CACHED_RUN_ADDR}\",{\"encoding\":\"base64\",\"dataSlice\":{\"offset\":0,\"length\":0}}]}" 2>/dev/null | python3 -c "
+import sys,json
+r=json.load(sys.stdin)
+if 'error' in r: print('ERROR')
+elif r.get('result',{}).get('value') is not None: print('EXISTS')
+else: print('GONE')
+" 2>/dev/null || echo "ERROR")
+          if [ "$_verify" = "EXISTS" ]; then
+            # Silent rate limit — RunAccount still exists, keep RUNNING
+            _run_count="1"
+            _run_addr="$CACHED_RUN_ADDR"
+            RPC_CACHED="true"
+          elif [ "$_verify" = "ERROR" ]; then
+            # RPC error on verification — keep cached state
+            _dash_s="${LAST_DASH_STATE:-QUEUED}"
+            _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
+            _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+            RPC_CACHED="true"
+          fi
+          # If GONE — genuinely not running, fall through
+        fi
+        if [ "$_run_count" = "0" ] || [ -z "$_run_count" ]; then
+          RUNNING_SINCE=0
+          CACHED_RUN_ADDR=""
+          CACHED_JOB_ADDR=""
+          rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
         if [ "${CURRENT_STATE}" = "RESTARTING" ]; then
           _dash_s="RESTARTING"
         else
@@ -829,6 +856,7 @@ print(b''.join(reversed(o)).decode())
         LAST_DASH_STATE="$_dash_s"
         LAST_DASH_JOBSTART="0"
         LAST_DASH_JOBTIMEOUT="0"
+        fi
       else
         # RPC failed — use cached state
         _dash_s="${LAST_DASH_STATE:-QUEUED}"
