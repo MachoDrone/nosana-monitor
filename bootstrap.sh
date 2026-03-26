@@ -396,11 +396,11 @@ TOML
 print_ok "Configuration written."
 
 # Set VAPID secrets
-print_info "Storing VAPID keys as encrypted Worker secrets..."
+print_info "Sending VAPID keys to Cloudflare (stored on their servers, not on your machine)..."
 cd /tmp/nosana-monitor/cloudflare-worker
 echo "$VAPID_PUBLIC" | wrangler secret put VAPID_PUBLIC_KEY 2>&1 | tail -1
 echo "$VAPID_PRIVATE" | wrangler secret put VAPID_PRIVATE_KEY 2>&1 | tail -1
-print_ok "VAPID secrets stored."
+print_ok "VAPID keys stored on Cloudflare. A copy is saved in your log file at the end."
 
 # Deploy
 print_info "Deploying Worker..."
