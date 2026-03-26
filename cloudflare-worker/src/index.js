@@ -317,7 +317,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-fill" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
     if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
@@ -457,12 +457,9 @@ async function handleDashboardGet(token, env) {
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 6s linear infinite}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 2s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
-    .ring-fill{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:-31.4;animation:solidFill 6s linear infinite}
-    .ring-fill{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
-    @keyframes dashTravel{0%{stroke-dashoffset:0}50%{stroke-dashoffset:62.8}100%{stroke-dashoffset:62.8}}
-    @keyframes solidFill{0%{stroke-dashoffset:31.4}50%{stroke-dashoffset:31.4}90%{stroke-dashoffset:0}100%{stroke-dashoffset:31.4}}
+    @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-31.4}}
     .state-running{color:#3b82f6}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
