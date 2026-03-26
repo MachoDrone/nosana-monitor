@@ -423,9 +423,9 @@ async function handleDashboardGet(token, env) {
         <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
         <td class="ul">${h.ul ? tap('single-stream speed', String(Math.round(Number(h.ul)))) : '-'}</td>
         <td class="ping">${h.ping ? Math.round(Number(h.ping)) : '-'}</td>
+        <td class="stakedNos">${h.stakedNos !== undefined && h.stakedNos !== '' ? Math.round(Number(h.stakedNos)) + ' / ' + (h.minStake ? Math.round(Number(h.minStake)) : '0') : '-'}</td>
         <td class="nos">${h.nos ? Math.round(Number(h.nos)) : '-'}</td>
         <td class="rewards">${h.rewards && h.nodeAddress ? '<a href="https://host.nosana.com/' + h.nodeAddress + '" target="_blank">' + Math.round(Number(h.rewards)) + '</a>' : h.rewards ? String(Math.round(Number(h.rewards))) : '-'}</td>
-        <td class="stakedNos">${h.stakedNos !== undefined && h.stakedNos !== '' ? Math.round(Number(h.stakedNos)) + ' / ' + (h.minStake ? Math.round(Number(h.minStake)) : '0') : '-'}</td>
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
         <td class="ver">${versionCell(h.version)}</td>
@@ -583,9 +583,9 @@ async function handleDashboardGet(token, env) {
         <th data-col="dl" data-type="num"><div>DL</div></th>
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
+        <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
         <th data-col="nos" data-type="num"><div>NOS</div></th>
         <th data-col="rewards" data-type="num"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Rewards<br>to claim</div></th>
-        <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
         <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-26px">Current<br>Node<br>${latestNodeVersion || '?'}</div></th>
