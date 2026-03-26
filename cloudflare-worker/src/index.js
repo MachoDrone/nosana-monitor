@@ -318,7 +318,7 @@ async function handleDashboardGet(token, env) {
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
     if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 5L9 12L15 12L12 19" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa);
-    if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
+    if (st === 'QUEUED') return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10"/></svg><span class="state-queued" style="font-weight:600">Q</span></span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
@@ -462,7 +462,12 @@ async function handleDashboardGet(token, env) {
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
     .state-running{color:#3b82f6}
-    .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
+    .queue-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
+    .queue-ring .state-queued{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#4ade80}
+    .queue-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
+    .qring-solid{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
+    .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
+    .qring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
