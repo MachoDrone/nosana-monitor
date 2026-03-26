@@ -313,12 +313,13 @@ async function handleDashboardGet(token, env) {
     return '';
   }
 
+  let queueIdx = 0;
   function stateIndicator(s, stateSince) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
     if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa);
-    if (st === 'QUEUED') return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8"/><circle class="qdot qdot2" r="1.8"/><circle class="qdot qdot3" r="1.8"/></svg></span>', sa);
+    if (st === 'QUEUED') { const d = (++queueIdx * 2.3) % 7; return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot2" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot3" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/></svg></span>', sa); }
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
