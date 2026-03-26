@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.06.3
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.07.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -251,7 +251,14 @@ async function handleStatusPost(token, request, env) {
     await sendAlerts(token, payload, env);
   }
 
-  return jsonResponse({ ok: true });
+  // Dynamic interval: recommend push frequency based on fleet size
+  // Formula: I = max(5, min(300, ceil(ceil(86400*N / (85800-5*N)) / 5) * 5))
+  // Keeps all Cloudflare free-tier limits under 90% for 1-200 hosts
+  const hostCount = Object.keys(data).length;
+  const rawInterval = Math.ceil(86400 * hostCount / (85800 - 5 * hostCount));
+  const recommendedInterval = Math.max(5, Math.min(300, Math.ceil(rawInterval / 5) * 5));
+
+  return jsonResponse({ ok: true, recommendedInterval });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1222,11 +1229,13 @@ async function handleDashboardGet(token, env) {
       function currentInterval() { return isFast ? fastInterval : kioskInterval; }
 
       function updateStatus() {
+        const paused = !canRefresh();
+        const pauseTag = paused ? ' \u{23F8} paused' : '';
         if (isFast) {
           const totalSecs = Math.max(0, Math.floor((fastExpiry - Date.now()) / 1000));
           const left = Math.floor(totalSecs / 60);
           const secs = totalSecs % 60;
-          fastStatus.textContent = 'Fast mode: ' + left + 'm ' + secs + 's remaining \u{2022} refresh ' + fastInterval + 's';
+          fastStatus.textContent = 'Fast mode: ' + left + 'm ' + secs + 's remaining \u{2022} refresh ' + fastInterval + 's' + pauseTag;
           fastStatus.style.display = '';
           if (Date.now() >= fastExpiry) {
             isFast = false;
@@ -1234,13 +1243,42 @@ async function handleDashboardGet(token, env) {
             localStorage.removeItem('nosana-fast-expiry');
             localStorage.removeItem('nosana-fast-mins');
             modeSelect.value = 'kiosk';
-            fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's';
+            fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's' + pauseTag;
             scheduleRefresh();
           }
         } else {
-          fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's';
+          fastStatus.textContent = 'Kiosk mode: refresh ' + kioskInterval + 's' + pauseTag;
           fastStatus.style.display = '';
         }
+      }
+
+      // Leader election: only one tab refreshes at a time
+      const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('nosana-fleet-refresh') : null;
+      let isLeader = true;
+      const tabId = Math.random().toString(36).slice(2);
+
+      function claimLeadership() {
+        isLeader = true;
+        localStorage.setItem('nosana-leader', tabId);
+        if (bc) bc.postMessage({ type: 'leader', id: tabId });
+      }
+
+      if (bc) {
+        bc.onmessage = (e) => {
+          if (e.data.type === 'leader' && e.data.id !== tabId) isLeader = false;
+          if (e.data.type === 'ping') bc.postMessage({ type: 'leader', id: tabId });
+        };
+      }
+
+      // Claim on focus, yield on blur
+      window.addEventListener('focus', claimLeadership);
+      claimLeadership();
+
+      function canRefresh() {
+        // Must be visible, focused (or only tab), and leader
+        if (document.hidden) return false;
+        if (!document.hasFocus() && localStorage.getItem('nosana-leader') !== tabId) return false;
+        return isLeader;
       }
 
       function scheduleRefresh() {
@@ -1248,7 +1286,7 @@ async function handleDashboardGet(token, env) {
         const intv = currentInterval();
         let elapsed = 0;
         refreshTimer = setInterval(() => {
-          if (document.hidden) return;
+          if (!canRefresh()) return;
           elapsed++;
           updateStatus();
           if (elapsed >= intv) {

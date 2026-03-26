@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.06.2"
+VERSION="0.07.0"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -18,7 +18,7 @@ MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
 DASHBOARD_URL=""
 HOST_NAME=""
-DASHBOARD_INTERVAL=120  # 2 minutes — worker throttles KV writes (max 1 per 2min per token); safe for 1-200 hosts
+DASHBOARD_INTERVAL=120  # default — dynamically adjusted by worker based on fleet size
 
 # Parse flags
 while [ $# -gt 0 ]; do
@@ -223,12 +223,16 @@ dashboard_push() {
   if [ -z "$DASHBOARD_URL" ]; then return; fi
   _n="$1"; _q="$2"; _s="$3"; _v="$4"; _dl="$5"; _ul="$6"; _ping="$7"; _disk="$8"; _gpu="$9"; _tier="${10}"; _ram="${11}"; _gpuid="${12}"; _rewards="${13}"; _jstart="${14}"; _jtimeout="${15}"; _qtotal="${16}"; _sol="${17}"; _nos="${18}"; _staked="${19}"; _minstake="${20}"; _cpu="${21}"; _nvidiadrv="${22}"; _cuda="${23}"; _sysenv="${24}"; _gpuname="${25}"; _runjob="${26}"
   _host="${HOST_NAME:-$(hostname)}"
-  if curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
+  _resp=$(curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\"}" >/dev/null 2>&1; then
-    DASHBOARD_PUSH_OK=1
-  else
-    DASHBOARD_PUSH_OK=0
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\"}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
+  # Dynamic interval: adjust push frequency based on fleet size (returned by worker)
+  if [ "$DASHBOARD_PUSH_OK" = "1" ] && [ -n "$_resp" ]; then
+    _new_interval=$(echo "$_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('recommendedInterval',''))" 2>/dev/null || echo "")
+    if [ -n "$_new_interval" ] && [ "$_new_interval" -gt 0 ] 2>/dev/null && [ "$_new_interval" != "$DASHBOARD_INTERVAL" ]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') INTERVAL - ${DASHBOARD_INTERVAL}s -> ${_new_interval}s (fleet size adjusted)"
+      DASHBOARD_INTERVAL="$_new_interval"
+    fi
   fi
 }
 
