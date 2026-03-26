@@ -318,7 +318,7 @@ async function handleDashboardGet(token, env) {
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
     if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa);
-    if (st === 'QUEUED') return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8"/><circle class="qdot qdot2" r="1.8"/><circle class="qdot qdot3" r="1.8"/><circle class="qdot qdot4" r="1.8"/></svg></span>', sa);
+    if (st === 'QUEUED') return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8"/><circle class="qdot qdot2" r="1.8"/><circle class="qdot qdot3" r="1.8"/></svg></span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
@@ -468,11 +468,9 @@ async function handleDashboardGet(token, env) {
     .qdot1{cx:12;cy:8;animation:q1 4s ease-in-out infinite}
     .qdot2{cx:12;cy:12;animation:q2 4s ease-in-out infinite}
     .qdot3{cx:12;cy:16;animation:q3 4s ease-in-out infinite}
-    .qdot4{cx:12;cy:20;opacity:0;animation:q4 4s ease-in-out infinite}
-    @keyframes q1{0%{cy:8;opacity:1}10%{cy:4;opacity:0}11%{cy:4;opacity:0}100%{cy:4;opacity:0}}
-    @keyframes q2{0%{cy:12}15%{cy:12}25%{cy:8}100%{cy:8}}
-    @keyframes q3{0%{cy:16}20%{cy:16}30%{cy:12}100%{cy:12}}
-    @keyframes q4{0%{cy:20;opacity:0}55%{cy:20;opacity:0}65%{cy:20;opacity:1}75%{cy:16}100%{cy:16}}
+    @keyframes q1{0%{cy:8;opacity:1}10%{cy:4;opacity:0}55%{cy:20;opacity:0}65%{cy:20;opacity:1}75%{cy:16;opacity:1}90%{cy:16;opacity:1}100%{cy:8;opacity:1}}
+    @keyframes q2{0%{cy:12}15%{cy:12}25%{cy:8}90%{cy:8}100%{cy:12}}
+    @keyframes q3{0%{cy:16}20%{cy:16}30%{cy:12}90%{cy:12}100%{cy:16}}
     .queue-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .qring-solid{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
