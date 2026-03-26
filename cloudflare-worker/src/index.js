@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.1
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.2
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -542,7 +542,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="sol" data-type="num"><div>SOL</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
-        <th data-col="runningJob" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Running<br>Job</div></th>
+        <th data-col="runningJob" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Latest<br>Job</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
@@ -556,10 +556,10 @@ async function handleDashboardGet(token, env) {
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
         <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version<br>${latestNodeVersion || '?'}</div></th>
-        <th data-col="cuda" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">CUDA<br>Version</div></th>
-        <th data-col="nvidiaDriver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">NVIDIA<br>Driver <span class="nv-toggle" id="nvToggle">\u{1F504}</span></div></th>
+        <th data-col="cuda" data-type="string"><div>CUDA</div></th>
+        <th data-col="nvidiaDriver" data-type="string"><div>NVIDIA <span class="nv-toggle" id="nvToggle">\u{1F504}</span></div></th>
         <th data-col="cpu" data-type="string"><div>CPU <span class="cpu-toggle" id="cpuToggle">\u{1F504}</span></div></th>
-        <th data-col="sysEnv" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">System<br>Env <span class="sys-toggle" id="sysToggle">\u{1F504}</span></div></th>
+        <th data-col="sysEnv" data-type="string"><div>System <span class="sys-toggle" id="sysToggle">\u{1F504}</span></div></th>
       </tr>
     </thead>
     <tbody>
