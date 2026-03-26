@@ -1,23 +1,21 @@
 # TODO — Nosana Monitor
 
 ## Next Up — Critical
-- [ ] **Market column bug**: Full slug + 2-char compact text showing together. Compact toggle not hiding full text properly.
-- [ ] Security: credentials visible in `docker inspect` args — consider env vars or mounted secrets file
+- [ ] **Bootstrap script**: Automate full setup for new operators (Cloudflare Worker + KV + VAPID + monitor deploy)
+- [ ] **Python rewrite**: Monitor shell→Python for CPU reduction (32% spikes → <1%) and PDA derivation support
+- [ ] Security: remove key file mount, derive pubkey via docker exec instead
 
 ## Next Up — Features
-- [ ] **Bootstrap script**: Automate Cloudflare Worker setup for new operators
-  - Creates KV namespaces (FLEET_DATA + PUSH_SUBS)
-  - Deploys worker code
-  - Generates and sets VAPID keys as secrets
-  - Generates random dashboard token
-  - Input: operator's Cloudflare API token
 - [ ] Expand STUCK detection to cover STARTING, HEALTHCHECK, BENCHMARKING (not just RESTARTING)
-- [ ] Alternative nosana-node log access: `docker exec podman tail -N /var/lib/containers/storage/overlay-containers/{ID}/userdata/ctr.log`
+- [ ] Nosana backend API: Total Jobs, Availability %, Anti-spoof % (not available via public API yet)
+- [ ] Disk column accuracy: nosana-node reports incorrect disk_gb from benchmark container (overlayfs issue)
+- [ ] Auto-detect all podman containers on host (eliminate --podman-container flag)
+- [ ] Auto-detect hostname from Docker API (eliminate --host-name flag for single-node PCs)
 
 ## Known Issues
-- [ ] nn04 podman stopped — needs `docker start podman` then nosana-node restart
-- [ ] nn04/nn06 nosana-node crashed due to forced CLI update (1.1.9-rc → 1.1.10)
-- [ ] Status column header "Host Address" two-line alignment tuning may need per-device adjustment
+- [ ] Cross-isolate pendingData/rpcStateCache — per-isolate memory means some requests get stale data
+- [ ] nn02/nn03 simultaneous reboot (2026-03-26 09:45) — Nosana node update via privileged container reboot syscall
+- [ ] KV write limit hit on 2026-03-26 from Phase 2 initial implementation (fixed — rpcState now in memory only)
 
 ## Completed
 - [x] v0.01.0 — Initial monitor with health checks, ntfy alerts
@@ -31,3 +29,7 @@
 - [x] v0.01.8 — Split polling: health 5s / dashboard 30min, OFFLINE threshold 36 failures, node info in heartbeats
 - [x] v0.01.9 — Cloudflare Worker dashboard with Web Push notifications, 3 alert levels, in-page audio, PWA support
 - [x] v0.02.0 — Solana RPC detection, blockchain timestamps, queue position, Market column, kiosk/fast mode, rate limit protection, push notifications aligned with dashboard, auto-deploy, 5-host fleet, CSS indicators, breathing bar, purge, column reorder
+- [x] v0.02.1 — Fix default sort arrow and reset to target PC column; eliminate double-click-to-sort bug
+- [x] v0.06.2 — SOL/NOS/Staked columns, Latest Job, CPU/NVIDIA/CUDA/System columns, animations (bolt1/ring3/queue dots/cardiac pulse/duration sweep), KV throttle architecture, persistent sort, version tracking, transition state, auto-update fix
+- [x] v0.07.x — Multi-GPU support (--podman-container), GPU ID from nvidia-smi, IP column (ext/int auto-detected), edit mode checkboxes, data keyed by nodeAddress, dynamic interval, leader election, focus-based refresh, KV optimization (eliminated 719 writes/day)
+- [x] v0.08.0 — Conservation Phase 1+2: cached RunAccount (getAccountInfo), cached authority, silent rate limit detection, worker-side RPC proxy (getMultipleAccounts batch), rpcStateCache in memory

@@ -159,12 +159,24 @@ When rate-limited, the public RPC sometimes returns **empty results instead of 4
 
 **Key finding**: RunAccount dataSize is 120 bytes (not 113 as SDK type definitions suggest). The 120-byte accounts with discriminator `c2a96ee6eb0be116` at memcmp offset 40 ARE the RunAccounts. They only exist while a job is active — confirmed by checking QUEUED host (0 accounts) vs RUNNING host (1 account).
 
-### Phase 2 (TODO)
+### Phase 2 (IMPLEMENTED 2026-03-26)
+
+| # | Optimization | Status | Impact |
+|---|-------------|--------|--------|
+| 6 | Worker-side RPC proxy with getMultipleAccounts | ✅ v0.08.0 | 200 hosts = 2 batch calls per cron tick instead of 200 individual calls |
+| 7 | WebSocket subscriptions | ❌ Long-term | Eliminates polling entirely — requires WebSocket support |
+
+**Architecture**: Worker cron batches all cached RunAccount addresses into `getMultipleAccounts` calls (100 per call). Results stored in `rpcStateCache` (in-memory Map, NOT KV — avoids write limit). POST response includes `rpcState` and `cachedRunAddr` so monitors skip their own Solana RPC calls entirely.
+
+**Key lesson**: Initial implementation stored RPC state in KV, immediately exhausting the daily write limit. Fixed by using in-memory cache only — RPC state is ephemeral and doesn't need persistence.
+
+**Caveat**: `rpcStateCache` is per-isolate (same as `pendingData`). If the POST and cron hit different isolates, the monitor won't get worker-provided state and falls back to its own RPC. This is acceptable — the fallback is Phase 1 optimized (cached getAccountInfo).
+
+### Phase 3 (FUTURE)
 
 | # | Optimization | Effort | Impact | Dependencies |
 |---|-------------|--------|--------|-------------|
-| 6 | Worker-side RPC proxy with getMultipleAccounts | Large | HIGH at scale — solves 200-host problem | Phase 1 complete ✅ |
-| 7 | WebSocket subscriptions | Large | Eliminates polling entirely | Requires WebSocket support |
+| 7 | WebSocket subscriptions | Large | Eliminates polling entirely | Requires WebSocket support, Durable Objects |
 
 ### Items requiring Python rewrite
 
@@ -180,3 +192,4 @@ PDA derivation (#2, #4) requires `findProgramAddress` which does a SHA-256 hash 
 - [ ] Does the Nosana Jobs program emit logs we can parse for state changes?
 - [ ] What RPC do most large operators use? Can we default to Helius free tier?
 - [ ] Should `--rpc` flag allow operators to use their own RPC endpoint?
+- [ ] KV write budget needs re-audit after Phase 2 changes — how many writes/day now?
