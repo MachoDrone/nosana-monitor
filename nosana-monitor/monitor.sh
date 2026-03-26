@@ -299,14 +299,13 @@ for line in sys.stdin:
   fi
 fi
 
-# Internal IP: resolve hostname from Docker API via DNS
+# Internal IP: get host LAN IP via one-shot host-networked container
+# Auto-detect hostname from Docker API
 INTERNAL_IP=""
 _docker_hostname=$(curl -sf --unix-socket /var/run/docker.sock http://localhost/info 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Name',''))" 2>/dev/null || echo "")
-if [ -n "$_docker_hostname" ]; then
-  INTERNAL_IP=$(python3 -c "import socket; print(socket.gethostbyname('${_docker_hostname}'))" 2>/dev/null || echo "")
-  if [ -n "$INTERNAL_IP" ]; then
-    echo "  Internal IP: ${INTERNAL_IP}"
-  fi
+INTERNAL_IP=$(docker run --rm --net=host ubuntu hostname -I 2>/dev/null | awk '{print $1}' || echo "")
+if [ -n "$INTERNAL_IP" ]; then
+  echo "  Internal IP: ${INTERNAL_IP}"
 fi
 
 # Auto-detect hostname if not set
