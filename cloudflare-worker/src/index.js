@@ -202,6 +202,11 @@ async function handleStatusPost(token, request, env) {
   // Update host in data (keyed by nodeAddress for uniqueness)
   data[dataKey] = updated;
 
+  // Migrate: remove old host-name key if nodeAddress key is now used
+  if (nodeAddress && host !== nodeAddress && data[host]) {
+    delete data[host];
+  }
+
   // Accumulate update in pending buffer, write to KV when throttle expires.
   // All hosts' seen timestamps stay fresh because pending accumulates across POSTs.
   // Budget: 720 writes/day per token regardless of fleet size (1-200 hosts).
