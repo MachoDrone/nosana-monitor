@@ -522,7 +522,7 @@ async function handleDashboardGet(token, env) {
     .dur-m-text{display:none}
     body.dur-text .dur-m-bar{display:none}
     body.dur-text .dur-m-text{display:inline}
-    .dur-toggle,.gpu-toggle,.hb-toggle,.nv-toggle,.cpu-toggle,.sys-toggle{cursor:pointer;font-size:12px}
+    .dur-toggle,.gpu-toggle,.hb-toggle,.nv-toggle,.cpu-toggle,.sys-toggle{cursor:pointer;font-size:9px;vertical-align:middle;line-height:1}
     .nv-m-full{display:none}
     body.nv-expanded .nv-m-full{display:inline}
     body.nv-expanded .nv-m-compact{display:none}
