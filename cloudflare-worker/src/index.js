@@ -491,7 +491,7 @@ async function handleDashboardGet(token, env) {
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
     th{height:80px;position:relative}
-    th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
+    th div{position:absolute;top:4px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
     th div.ml{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px)}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
