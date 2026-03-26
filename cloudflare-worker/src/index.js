@@ -459,9 +459,10 @@ async function handleDashboardGet(token, env) {
     .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%) rotate(5deg)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:blueDashVary 12s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
+    @keyframes blueDashVary{0%{stroke-dashoffset:0}10%{stroke-dashoffset:-9.5}22%{stroke-dashoffset:-28.5}30%{stroke-dashoffset:-38}42%{stroke-dashoffset:-47.5}50%{stroke-dashoffset:-57}52%{stroke-dashoffset:-76}60%{stroke-dashoffset:-85.5}72%{stroke-dashoffset:-95}82%{stroke-dashoffset:-114}90%{stroke-dashoffset:-123.5}100%{stroke-dashoffset:-133}}
     .state-running{color:#3b82f6}
     .queue-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .queue-dots{position:absolute;top:0;left:0;width:100%;height:100%}
