@@ -840,7 +840,7 @@ print(b''.join(reversed(o)).decode())
       _dash_cuda=""
       _dash_sysenv=""
       _dash_gpuname=""
-      _dash_extip=""
+      _dash_extip="${EXTERNAL_IP:-}"
       _dash_intip="${INTERNAL_IP:-}"
       _dash_runningjob="${LAST_JOB_ADDR:-}"
       _dash_stopped=""
