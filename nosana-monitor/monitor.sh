@@ -569,6 +569,7 @@ while true; do
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"${PUBKEY}\"]}" 2>/dev/null | python3 -c "import sys,json; r=json.load(sys.stdin); print(f'{r[\"result\"][\"value\"]/1e9:.4f}')" 2>/dev/null || echo "")
 
+      # NOS balance (getTokenAccountsByOwner — light enough at 30min interval)
       BALANCE_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTokenAccountsByOwner\",\"params\":[\"${PUBKEY}\",{\"mint\":\"nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7\"},{\"encoding\":\"jsonParsed\"}]}" 2>/dev/null | python3 -c "
