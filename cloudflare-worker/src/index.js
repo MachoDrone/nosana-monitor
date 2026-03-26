@@ -527,10 +527,10 @@ async function handleDashboardGet(token, env) {
     table{border-collapse:collapse}
     th,td{padding:6px 8px;text-align:center;border-bottom:1px solid #2a2a2a;white-space:nowrap}
     tbody tr:nth-child(even){background:#171717}
-    th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
+    th{color:#aaa;font-size:10px;user-select:none;
        padding:6px 8px;vertical-align:bottom}
     th{height:80px;position:relative}
-    th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
+    th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap;cursor:pointer}
     th div.ml2{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px}
     th div.ml3{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-26px}
     th:hover{color:#fff}
@@ -1049,7 +1049,9 @@ async function handleDashboardGet(token, env) {
       })();
 
       headers.forEach((th, idx) => {
-        th.addEventListener('click', () => {
+        const clickTarget = th.querySelector('div') || th;
+        clickTarget.addEventListener('click', (e) => {
+          e.stopPropagation();
           const type = th.dataset.type;
           const col = th.dataset.col;
           if (!col) return; // skip checkbox column
