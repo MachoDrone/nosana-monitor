@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.2"
+VERSION="0.07.3"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -692,8 +692,20 @@ else:
       _rpc_resp=$(rpc_curl -X POST "$SOLANA_RPC" \
         -H "Content-Type: application/json" \
         -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null || echo "")
-      _run_count=$(echo "$_rpc_resp" | python3 -c "import sys,json; r=json.load(sys.stdin); print(len(r.get('result',[])))" 2>/dev/null || echo "")
-      if [ "$_run_count" -gt 0 ] 2>/dev/null; then
+      _run_count=$(echo "$_rpc_resp" | python3 -c "
+import sys,json
+r=json.load(sys.stdin)
+if 'error' in r:
+    print('RPC_ERROR')
+else:
+    print(len(r.get('result',[])))
+" 2>/dev/null || echo "")
+      if [ "$_run_count" = "RPC_ERROR" ]; then
+        # Rate limited or RPC error — keep cached state
+        _dash_s="${LAST_DASH_STATE:-QUEUED}"
+        _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
+        _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+      elif [ "$_run_count" -gt 0 ] 2>/dev/null; then
         _dash_s="RUNNING"
         # Get real job start time from blockchain (RunAccount creation tx)
         if [ "$RUNNING_SINCE" -eq 0 ] 2>/dev/null; then
