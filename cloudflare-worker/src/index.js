@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.4
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.5
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -16,11 +16,12 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
 
-// KV write throttle: track last write time per token to avoid exceeding
-// free-tier 1,000 writes/day. With 2-min cron + throttled POST writes,
-// budget is ~720/day max regardless of fleet size (1-200 hosts).
-const KV_WRITE_INTERVAL_MS = 2 * 60 * 1000; // min 2 min between KV writes per token
-const lastKvWrite = new Map(); // token → timestamp (per-isolate, best-effort)
+// KV write throttle: max 1 write per token per interval, but accumulates
+// ALL host updates between writes so no host's seen timestamp goes stale.
+// Budget: 720 writes/day per token regardless of fleet size (1-200 hosts).
+const KV_WRITE_INTERVAL_MS = 2 * 60 * 1000;
+const lastKvWrite = new Map(); // token → timestamp
+const pendingData = new Map(); // token → full data object with accumulated updates
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -135,9 +136,14 @@ async function handleStatusPost(token, request, env) {
   const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
-  // Read current KV data
-  const raw = await env.FLEET_DATA.get(token);
-  const data = raw ? JSON.parse(raw) : {};
+  // Read current data: prefer pending (accumulated updates) over KV
+  let data;
+  if (pendingData.has(token)) {
+    data = pendingData.get(token);
+  } else {
+    const raw = await env.FLEET_DATA.get(token);
+    data = raw ? JSON.parse(raw) : {};
+  }
   const prev = data[host] || null;
 
   const wasDown = prev && (prev.alerted === true || Number(prev.n) === 0);
@@ -182,22 +188,17 @@ async function handleStatusPost(token, request, env) {
   // Update host in data
   data[host] = updated;
 
-  // Write KV — throttled to max once per KV_WRITE_INTERVAL_MS per token
-  // State changes always write immediately; heartbeat-only updates are throttled
+  // Accumulate update in pending buffer, write to KV when throttle expires.
+  // All hosts' seen timestamps stay fresh because pending accumulates across POSTs.
+  // Budget: 720 writes/day per token regardless of fleet size (1-200 hosts).
   const now = Date.now();
+  pendingData.set(token, data);
   const lastWrite = lastKvWrite.get(token) || 0;
-  const stateChanged = !prev
-    || String(prev.n) !== String(updated.n)
-    || prev.state !== updated.state
-    || prev.q !== updated.q
-    || prev.tier !== updated.tier
-    || prev.queueTotal !== updated.queueTotal;
-  const shouldWrite = stateChanged || (now - lastWrite) >= KV_WRITE_INTERVAL_MS;
-
-  if (shouldWrite) {
+  if ((now - lastWrite) >= KV_WRITE_INTERVAL_MS) {
     try {
       await env.FLEET_DATA.put(token, JSON.stringify(data));
       lastKvWrite.set(token, now);
+      pendingData.delete(token);
     } catch (e) {
       return jsonResponse({ error: 'KV write failed', detail: e.message }, 507);
     }
@@ -246,8 +247,14 @@ async function handleStatusPost(token, request, env) {
 /* ------------------------------------------------------------------ */
 
 async function handleDashboardGet(token, env) {
-  const raw = await env.FLEET_DATA.get(token);
-  const data = raw ? JSON.parse(raw) : {};
+  // Prefer pending data (has latest seen timestamps) over KV
+  let data;
+  if (pendingData.has(token)) {
+    data = pendingData.get(token);
+  } else {
+    const raw = await env.FLEET_DATA.get(token);
+    data = raw ? JSON.parse(raw) : {};
+  }
 
 
 
