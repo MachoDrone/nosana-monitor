@@ -138,6 +138,9 @@ async function handleStatusPost(token, request, env) {
   const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
+  // Key by nodeAddress (unique per GPU) if available, otherwise host name
+  const dataKey = nodeAddress || host;
+
   // Read current data: prefer pending (accumulated updates) over KV
   let data;
   if (pendingData.has(token)) {
@@ -146,7 +149,7 @@ async function handleStatusPost(token, request, env) {
     const raw = await env.FLEET_DATA.get(token);
     data = raw ? JSON.parse(raw) : {};
   }
-  const prev = data[host] || null;
+  const prev = data[dataKey] || null;
 
   const wasDown = prev && (prev.alerted === true || Number(prev.n) === 0);
   const allUpNow = Number(n) === 1;
@@ -193,8 +196,11 @@ async function handleStatusPost(token, request, env) {
     alerted: isDown,
   };
 
-  // Update host in data
-  data[host] = updated;
+  // Store display name inside the entry
+  updated.hostName = host;
+
+  // Update host in data (keyed by nodeAddress for uniqueness)
+  data[dataKey] = updated;
 
   // Accumulate update in pending buffer, write to KV when throttle expires.
   // All hosts' seen timestamps stay fresh because pending accumulates across POSTs.
@@ -428,7 +434,7 @@ async function handleDashboardGet(token, env) {
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
         <td class="tier">${isDown(h.n, h.seen) ? '<span style="color:#888">?</span>' : tierIndicator(h.tier)}</td>
-        <td class="host">${name}</td>
+        <td class="host">${h.hostName || name}</td>
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
