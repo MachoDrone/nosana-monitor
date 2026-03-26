@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.8
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.9
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -259,6 +259,7 @@ async function handleDashboardGet(token, env) {
 
 
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
+  const latestNodeVersion = (await env.FLEET_DATA.get('_latestNodeVersion')) || '';
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
   const now = Date.now();
@@ -342,6 +343,18 @@ async function handleDashboardGet(token, env) {
     return '<span class="dur-mode dur-m-bar">' + tap(exceeded ? '\u{26A0}\u{FE0F} EXCEEDED — ' + text : text, bar) + '</span><span class="dur-mode dur-m-text">' + styledText + '</span>';
   }
 
+  function versionCell(ver) {
+    if (!ver) return '-';
+    const base = ver.replace(/-.*$/, ''); // strip -rc, -beta etc
+    const hasTrailing = base !== ver;
+    let color;
+    if (hasTrailing) color = '#ec4899';          // pink: RC/beta
+    else if (latestNodeVersion && base === latestNodeVersion) color = '#15803d'; // green: matches latest
+    else if (latestNodeVersion) color = '#f59e0b'; // yellow: outdated
+    else color = '#888';                          // grey: no latest known
+    return '<span style="color:' + color + '">' + ver + '</span>';
+  }
+
   function seenAgo(ts) {
     const diff = Math.round((now - ts) / 1000);
     if (diff < 60) return `${diff}s ago`;
@@ -404,7 +417,7 @@ async function handleDashboardGet(token, env) {
         <td class="stakedNos">${h.stakedNos !== undefined && h.stakedNos !== '' ? Math.round(Number(h.stakedNos)) + ' / ' + (h.minStake ? Math.round(Number(h.minStake)) : '0') : '-'}</td>
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
-        <td class="ver">${h.version || '-'}</td>
+        <td class="ver">${versionCell(h.version)}</td>
       </tr>`,
     )
     .join('\n');
@@ -519,7 +532,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
-        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version</div></th>
+        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version<br>${latestNodeVersion || '?'}</div></th>
       </tr>
     </thead>
     <tbody>
@@ -1406,6 +1419,18 @@ async function handleRequest(request, env) {
 
 async function handleScheduled(env) {
   const now = Date.now();
+
+  // Fetch latest nosana-node version from Docker Hub (one call per cron tick for entire fleet)
+  try {
+    const resp = await fetch('https://hub.docker.com/v2/repositories/nosana/nosana-node/tags/?page_size=5&ordering=last_updated');
+    if (resp.ok) {
+      const tags = await resp.json();
+      const latest = (tags.results || []).find(t => /^v?\d+\.\d+\.\d+$/.test(t.name));
+      if (latest) {
+        await env.FLEET_DATA.put('_latestNodeVersion', latest.name.replace(/^v/, ''));
+      }
+    }
+  } catch {}
 
   // Get tokens from KV
   const kvTokenList = await env.FLEET_DATA.get('_tokens');
