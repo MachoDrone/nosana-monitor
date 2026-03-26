@@ -468,9 +468,9 @@ async function handleDashboardGet(token, env) {
     .qdot1{cx:12;cy:8;animation:q1 4s ease-in-out infinite}
     .qdot2{cx:12;cy:12;animation:q2 4s ease-in-out infinite}
     .qdot3{cx:12;cy:16;animation:q3 4s ease-in-out infinite}
-    @keyframes q1{0%{cy:8;opacity:1}10%{cy:4;opacity:0}55%{cy:20;opacity:0}65%{cy:20;opacity:1}75%{cy:16;opacity:1}90%{cy:16;opacity:1}100%{cy:8;opacity:1}}
-    @keyframes q2{0%{cy:12}15%{cy:12}25%{cy:8}90%{cy:8}100%{cy:12}}
-    @keyframes q3{0%{cy:16}20%{cy:16}30%{cy:12}90%{cy:12}100%{cy:16}}
+    @keyframes q1{0%{cy:8;opacity:1}10%{cy:4;opacity:0}55%{cy:20;opacity:0}65%{cy:20;opacity:1}75%{cy:16;opacity:1}99.9%{cy:16;opacity:1}100%{cy:8;opacity:1}}
+    @keyframes q2{0%{cy:12}15%{cy:12}25%{cy:8}99.9%{cy:8}100%{cy:12}}
+    @keyframes q3{0%{cy:16}20%{cy:16}30%{cy:12}99.9%{cy:12}100%{cy:16}}
     .queue-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .qring-solid{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
