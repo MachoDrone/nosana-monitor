@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.9
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.06.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -399,7 +399,7 @@ async function handleDashboardGet(token, env) {
       const dur = (d ? d + 'd ' : '') + (hr ? hr + 'h ' : '') + mn + 'm';
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
-      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), dot('#15803d'));
+      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="color:#15803d;font-size:10px">\u{2764}</span>');
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
@@ -530,6 +530,8 @@ async function handleDashboardGet(token, env) {
     body.sys-expanded .sys-m-full{display:inline}
     body.sys-expanded .sys-m-compact{display:none}
     .hb-m-compact{display:none}
+    .hb-heart.pulse{animation:cardiacPulse 0.8s ease-out 1}
+    @keyframes cardiacPulse{0%{transform:scale(1)}15%{transform:scale(1.4)}30%{transform:scale(1)}45%{transform:scale(1.25)}60%{transform:scale(1)}100%{transform:scale(1)}}
     body.hb-compact .hb-m-full{display:none}
     body.hb-compact .hb-m-compact{display:inline}
     .gpu-m-dot{display:none}
@@ -736,6 +738,24 @@ async function handleDashboardGet(token, env) {
         const cur = document.body.classList.contains('sys-expanded') ? 'expanded' : 'compact';
         localStorage.setItem('nosana-sys-mode', cur);
       });
+    })();
+
+    /* ---- Heartbeat pulse on updated timestamp ---- */
+    (function() {
+      const prev = JSON.parse(localStorage.getItem('nosana-hb-seen') || '{}');
+      const curr = {};
+      document.querySelectorAll('.hb-heart').forEach(el => {
+        const seen = el.dataset.seen;
+        const host = el.closest('tr')?.dataset.host;
+        if (host && seen) {
+          curr[host] = seen;
+          if (prev[host] && prev[host] !== seen) {
+            el.classList.add('pulse');
+            el.addEventListener('animationend', () => el.classList.remove('pulse'), { once: true });
+          }
+        }
+      });
+      localStorage.setItem('nosana-hb-seen', JSON.stringify(curr));
     })();
 
     /* ---- Market slug click-to-refresh ---- */
