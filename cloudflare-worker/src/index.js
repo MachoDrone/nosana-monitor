@@ -317,7 +317,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
     if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
@@ -455,10 +455,11 @@ async function handleDashboardGet(token, env) {
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
     .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-    .run-ring::before,.run-ring::after{content:'';position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;box-sizing:border-box;animation:ringRotate 3s linear infinite}
-    .run-ring::before{border:2px solid #3b82f6;clip-path:polygon(50% 0%,100% 0%,100% 100%,50% 100%)}
-    .run-ring::after{border:2px dashed #3b82f6;clip-path:polygon(0% 0%,50% 0%,50% 100%,0% 100%)}
-    @keyframes ringRotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    .run-svg{position:absolute;top:0;left:0;width:100%;height:100%}
+    .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4;stroke-dashoffset:-15.7}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:3 4.5;stroke-dashoffset:0;animation:dashTravel 2s linear infinite}
+    .ring-dash{clip-path:polygon(0% 0%,50% 0%,50% 100%,0% 100%)}
+    @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-31.4}}
     .state-running{animation:colorShift 6s ease-in-out infinite}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
