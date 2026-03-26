@@ -459,7 +459,7 @@ async function handleDashboardGet(token, env) {
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 2s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
-    @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-31.4}}
+    @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
     .state-running{color:#3b82f6}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
