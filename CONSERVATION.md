@@ -143,24 +143,40 @@ When rate-limited, the public RPC sometimes returns **empty results instead of 4
 
 ---
 
-## Implementation Priority
+## Implementation Status
+
+### Phase 1 (COMPLETED 2026-03-26)
+
+| # | Optimization | Status | Impact |
+|---|-------------|--------|--------|
+| 1 | Cache RunAccount address, use getAccountInfo | ✅ v0.07.4 | ~90% reduction in heavy calls during RUNNING state |
+| 2 | Derive StakeAccount PDA | ❌ Deferred | Needs ed25519 on-curve check — deferred to Python rewrite |
+| 3 | Cache authority from registration account | ✅ v0.07.5 | Eliminates 1 heavy call per 30min cycle per host |
+| 4 | Derive NOS ATA address | ❌ Deferred | Needs ed25519 on-curve check — deferred to Python rewrite |
+| 5 | Detect silent rate limiting | ✅ v0.07.6 | Prevents false QUEUED when RPC silently drops results |
+
+**Verified**: 8 hosts (5 PCs + 3 GPUs) on one public IP, all reporting live state, zero rate limit errors after Phase 1. SOLANA_CHECK_INTERVAL increased to 120s. Staggered rebuilds prevent startup burst.
+
+**Key finding**: RunAccount dataSize is 120 bytes (not 113 as SDK type definitions suggest). The 120-byte accounts with discriminator `c2a96ee6eb0be116` at memcmp offset 40 ARE the RunAccounts. They only exist while a job is active — confirmed by checking QUEUED host (0 accounts) vs RUNNING host (1 account).
+
+### Phase 2 (TODO)
 
 | # | Optimization | Effort | Impact | Dependencies |
 |---|-------------|--------|--------|-------------|
-| 1 | Cache RunAccount address, use getAccountInfo | Small | HIGH — eliminates ~90% of heavy calls | None |
-| 2 | Derive StakeAccount PDA | Small | Medium — eliminates 1 heavy call/30min | Know authority (from #3) |
-| 3 | Cache authority from registration account | Small | Medium — eliminates 1 heavy call/30min | None |
-| 4 | Derive NOS ATA address | Small | Low — eliminates 1 medium call/30min | None |
-| 5 | Detect silent rate limiting (empty result != no data) | Small | HIGH — prevents false QUEUED state | None |
-| 6 | Worker-side RPC proxy with getMultipleAccounts | Large | HIGH at scale — solves 200-host problem | Phase 1 complete |
+| 6 | Worker-side RPC proxy with getMultipleAccounts | Large | HIGH at scale — solves 200-host problem | Phase 1 complete ✅ |
 | 7 | WebSocket subscriptions | Large | Eliminates polling entirely | Requires WebSocket support |
+
+### Items requiring Python rewrite
+
+PDA derivation (#2, #4) requires `findProgramAddress` which does a SHA-256 hash + ed25519 on-curve check. Pure Python without `nacl` or `cryptography` library cannot do this reliably. When the monitor is rewritten from shell to Python (planned for CPU optimization), these become trivial with the `solders` or `solana-py` package.
 
 ---
 
 ## Open Questions
 
-- [ ] Verify RunAccount dataSize is 113 bytes (SDK says so) vs 120 bytes (our filter uses 120)
+- [x] ~~Verify RunAccount dataSize is 113 bytes (SDK says so) vs 120 bytes (our filter uses 120)~~ — **RESOLVED: 120 bytes is correct**
 - [ ] Test if `getMultipleAccounts` with 100 RunAccount addresses triggers rate limits
 - [ ] Can the market queue data tell us if a host is RUNNING without scanning RunAccounts?
 - [ ] Does the Nosana Jobs program emit logs we can parse for state changes?
 - [ ] What RPC do most large operators use? Can we default to Helius free tier?
+- [ ] Should `--rpc` flag allow operators to use their own RPC endpoint?
