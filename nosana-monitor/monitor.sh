@@ -280,6 +280,7 @@ LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
 RUNNING_STATE_FILE="/state/running-since"
 RUNNING_SINCE=0  # always re-fetch from blockchain on startup
+LAST_JOB_ADDR=""  # persists across state changes for "Latest Job" column
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
@@ -692,7 +693,7 @@ print(b''.join(reversed(o)).decode())
         _dash_s="RESTARTING"
         _dash_jobstart="0"
         _dash_jobtimeout="0"
-        _dash_runningjob=""
+        _dash_runningjob="${LAST_JOB_ADDR:-}"
         RUNNING_SINCE=0
         rm -f "$RUNNING_STATE_FILE" 2>/dev/null || true
       fi
@@ -700,7 +701,7 @@ print(b''.join(reversed(o)).decode())
       if [ "$_dash_s" != "RUNNING" ]; then
         _dash_jobstart="0"
         _dash_jobtimeout="0"
-        _dash_runningjob=""
+        _dash_runningjob="${LAST_JOB_ADDR:-}"
       fi
       _dash_v=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('version',''))" 2>/dev/null || echo "")
       _dash_uptime=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uptime',''))" 2>/dev/null || echo "")
@@ -718,7 +719,10 @@ print(b''.join(reversed(o)).decode())
       _dash_sysenv=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('system_environment',''))" 2>/dev/null || echo "")
       _dash_gpuname=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['name'] if devs else '')" 2>/dev/null || echo "")
       # Running job address from Solana RPC (already queried)
-      _dash_runningjob="${_run_addr:-}"
+      if [ -n "${_run_addr:-}" ]; then
+        LAST_JOB_ADDR="$_run_addr"
+      fi
+      _dash_runningjob="${LAST_JOB_ADDR:-}"
     else
       _dash_n=0
       _dash_q="-"
@@ -740,7 +744,7 @@ print(b''.join(reversed(o)).decode())
       _dash_cuda=""
       _dash_sysenv=""
       _dash_gpuname=""
-      _dash_runningjob=""
+      _dash_runningjob="${LAST_JOB_ADDR:-}"
       _dash_stopped=""
     fi
     # If node is not running, try to get container stop time

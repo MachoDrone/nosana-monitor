@@ -186,7 +186,7 @@ async function handleStatusPost(token, request, env) {
     cudaVersion: cudaVersion || (prev && prev.cudaVersion) || '',
     sysEnv: sysEnv || (prev && prev.sysEnv) || '',
     gpuName: gpuName || (prev && prev.gpuName) || '',
-    runningJob: runningJob || '',
+    runningJob: runningJob || (prev && prev.runningJob) || '',
     seen: Date.now(),
     alerted: isDown,
   };
