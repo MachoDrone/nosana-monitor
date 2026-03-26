@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.1
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -426,9 +426,9 @@ async function handleDashboardGet(token, env) {
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
         <td class="ver">${versionCell(h.version)}</td>
         <td class="cuda">${h.cudaVersion || '-'}</td>
-        <td class="nvidia-drv">${h.nvidiaDriver || '-'}</td>
-        <td class="cpu">${h.cpu || '-'}</td>
-        <td class="sysenv">${h.sysEnv || '-'}</td>
+        <td class="nvidia-drv"><span class="nv-m-full">${h.nvidiaDriver || '-'}</span><span class="nv-m-compact">${h.nvidiaDriver ? h.nvidiaDriver.split('.')[0] : '-'}</span></td>
+        <td class="cpu"><span class="cpu-m-full">${h.cpu || '-'}</span><span class="cpu-m-compact">${h.cpu ? h.cpu.split(' ')[0] : '-'}</span></td>
+        <td class="sysenv"><span class="sys-m-full">${h.sysEnv || '-'}</span><span class="sys-m-compact">${h.sysEnv ? h.sysEnv.split('-')[0] : '-'}</span></td>
       </tr>`,
     )
     .join('\n');
@@ -488,7 +488,16 @@ async function handleDashboardGet(token, env) {
     .dur-m-text{display:none}
     body.dur-text .dur-m-bar{display:none}
     body.dur-text .dur-m-text{display:inline}
-    .dur-toggle,.gpu-toggle,.hb-toggle{cursor:pointer;font-size:12px}
+    .dur-toggle,.gpu-toggle,.hb-toggle,.nv-toggle,.cpu-toggle,.sys-toggle{cursor:pointer;font-size:12px}
+    .nv-m-full{display:none}
+    body.nv-expanded .nv-m-full{display:inline}
+    body.nv-expanded .nv-m-compact{display:none}
+    .cpu-m-full{display:none}
+    body.cpu-expanded .cpu-m-full{display:inline}
+    body.cpu-expanded .cpu-m-compact{display:none}
+    .sys-m-full{display:none}
+    body.sys-expanded .sys-m-full{display:inline}
+    body.sys-expanded .sys-m-compact{display:none}
     .hb-m-compact{display:none}
     body.hb-compact .hb-m-full{display:none}
     body.hb-compact .hb-m-compact{display:inline}
@@ -548,9 +557,9 @@ async function handleDashboardGet(token, env) {
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
         <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version<br>${latestNodeVersion || '?'}</div></th>
         <th data-col="cuda" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">CUDA<br>Version</div></th>
-        <th data-col="nvidiaDriver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">NVIDIA<br>Driver</div></th>
-        <th data-col="cpu" data-type="string"><div>CPU</div></th>
-        <th data-col="sysEnv" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">System<br>Env</div></th>
+        <th data-col="nvidiaDriver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">NVIDIA<br>Driver <span class="nv-toggle" id="nvToggle">\u{1F504}</span></div></th>
+        <th data-col="cpu" data-type="string"><div>CPU <span class="cpu-toggle" id="cpuToggle">\u{1F504}</span></div></th>
+        <th data-col="sysEnv" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">System<br>Env <span class="sys-toggle" id="sysToggle">\u{1F504}</span></div></th>
       </tr>
     </thead>
     <tbody>
@@ -656,6 +665,45 @@ async function handleDashboardGet(token, env) {
         document.body.classList.toggle('hb-compact');
         const cur = document.body.classList.contains('hb-compact') ? 'compact' : 'full';
         localStorage.setItem('nosana-hb-mode', cur);
+      });
+    })();
+
+    /* ---- NVIDIA Driver toggle (default: compact) ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-nv-mode') || 'compact';
+      if (mode === 'expanded') document.body.classList.add('nv-expanded');
+      const tog = document.getElementById('nvToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('nv-expanded');
+        const cur = document.body.classList.contains('nv-expanded') ? 'expanded' : 'compact';
+        localStorage.setItem('nosana-nv-mode', cur);
+      });
+    })();
+
+    /* ---- CPU toggle (default: compact) ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-cpu-mode') || 'compact';
+      if (mode === 'expanded') document.body.classList.add('cpu-expanded');
+      const tog = document.getElementById('cpuToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('cpu-expanded');
+        const cur = document.body.classList.contains('cpu-expanded') ? 'expanded' : 'compact';
+        localStorage.setItem('nosana-cpu-mode', cur);
+      });
+    })();
+
+    /* ---- System Env toggle (default: compact) ---- */
+    (function() {
+      const mode = localStorage.getItem('nosana-sys-mode') || 'compact';
+      if (mode === 'expanded') document.body.classList.add('sys-expanded');
+      const tog = document.getElementById('sysToggle');
+      if (tog) tog.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('sys-expanded');
+        const cur = document.body.classList.contains('sys-expanded') ? 'expanded' : 'compact';
+        localStorage.setItem('nosana-sys-mode', cur);
       });
     })();
 
