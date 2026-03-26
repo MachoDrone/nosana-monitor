@@ -317,7 +317,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running" style="font-weight:700;font-size:13px;display:inline-block;transform:rotate(90deg)">\u{2301}</span></span>', sa);
     if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
