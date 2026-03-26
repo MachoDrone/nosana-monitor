@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.0"
+VERSION="0.07.1"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -18,6 +18,7 @@ MATRIX_BOT_PASS=""
 STATUS_INTERVAL=1800  # 30 minutes in seconds
 DASHBOARD_URL=""
 HOST_NAME=""
+PODMAN_CONTAINER="podman"  # outer Docker container name; override with --podman-container for multi-GPU
 DASHBOARD_INTERVAL=120  # default — dynamically adjusted by worker based on fleet size
 
 # Parse flags
@@ -36,6 +37,7 @@ while [ $# -gt 0 ]; do
     --matrix-bot-pass) MATRIX_BOT_PASS="$2"; shift 2 ;;
     --dashboard-url) DASHBOARD_URL="$2"; shift 2 ;;
     --host-name) HOST_NAME="$2"; shift 2 ;;
+    --podman-container) PODMAN_CONTAINER="$2"; shift 2 ;;
     --version) echo "nosana-monitor v${VERSION}"; exit 0 ;;
     *) shift ;;
   esac
@@ -799,10 +801,10 @@ print(b''.join(reversed(o)).decode())
     if [ "$_dash_n" = "0" ] || ([ "$_dash_s" != "RUNNING" ] && [ -z "$_dash_s" ]); then
       _dash_down_approx="false"
       _dash_down_label="nosana-node"
-      _dash_stopped=$(docker exec podman podman inspect nosana-node --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
+      _dash_stopped=$(docker exec "$PODMAN_CONTAINER" podman inspect nosana-node --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
       # Fallback 1: if podman itself is stopped, use podman's stop time
       if [ -z "$_dash_stopped" ]; then
-        _dash_stopped=$(docker inspect podman --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
+        _dash_stopped=$(docker inspect "$PODMAN_CONTAINER" --format '{{.State.FinishedAt}}' 2>/dev/null || echo "")
         case "$_dash_stopped" in 0001-*) _dash_stopped="" ;; esac
         if [ -n "$_dash_stopped" ]; then _dash_down_label="Podman"; fi
       fi
