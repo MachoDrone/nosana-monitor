@@ -399,7 +399,7 @@ async function handleDashboardGet(token, env) {
       const dur = (d ? d + 'd ' : '') + (hr ? hr + 'h ' : '') + mn + 'm';
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
-      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="color:#15803d;font-size:10px">\u{2764}</span>');
+      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="font-size:10px;display:inline-block">\u{1F49A}</span>');
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
@@ -744,17 +744,22 @@ async function handleDashboardGet(token, env) {
     (function() {
       const prev = JSON.parse(localStorage.getItem('nosana-hb-seen') || '{}');
       const curr = {};
-      document.querySelectorAll('.hb-heart').forEach(el => {
-        const seen = el.dataset.seen;
-        const host = el.closest('tr')?.dataset.host;
-        if (host && seen) {
+      const rows = document.querySelectorAll('#fleet tbody tr');
+      let pulsed = 0;
+      rows.forEach(tr => {
+        const host = tr.dataset.host;
+        const seen = tr.dataset.seen;
+        const heart = tr.querySelector('.hb-heart');
+        if (host && seen && heart) {
           curr[host] = seen;
           if (prev[host] && prev[host] !== seen) {
-            el.classList.add('pulse');
-            el.addEventListener('animationend', () => el.classList.remove('pulse'), { once: true });
+            heart.classList.add('pulse');
+            heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
+            pulsed++;
           }
         }
       });
+      if (pulsed) console.log('HB pulse: ' + pulsed + ' host(s)');
       localStorage.setItem('nosana-hb-seen', JSON.stringify(curr));
     })();
 
