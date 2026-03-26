@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.06.1"
+VERSION="0.06.2"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -339,6 +339,48 @@ get_node_info() {
 }
 
 reset_state_counts
+
+# Backfill last job address if not persisted (one-time on startup)
+# First check for active RunAccount, then fall back to transaction history
+if [ -z "$LAST_JOB_ADDR" ]; then
+  # Check for active RunAccount (host currently running a job)
+  _active_run=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+    -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"${NOSANA_JOBS_PROGRAM}\",{\"filters\":[{\"dataSize\":120},{\"memcmp\":{\"offset\":40,\"bytes\":\"${PUBKEY}\"}}],\"encoding\":\"base64\",\"dataSlice\":{\"offset\":8,\"length\":32}}]}" 2>/dev/null | python3 -c "
+import sys,json; r=json.load(sys.stdin).get('result',[])
+if r: print(r[0]['pubkey'])
+" 2>/dev/null || echo "")
+  if [ -n "$_active_run" ]; then
+    LAST_JOB_ADDR="$_active_run"
+  else
+    # No active job — find most recent job from transaction history
+    _recent_sig=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+      -H "Content-Type: application/json" \
+      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getSignaturesForAddress\",\"params\":[\"${PUBKEY}\",{\"limit\":1}]}" 2>/dev/null | python3 -c "
+import sys,json; r=json.load(sys.stdin).get('result',[])
+if r and not r[0].get('err'): print(r[0]['signature'])
+" 2>/dev/null || echo "")
+    if [ -n "$_recent_sig" ]; then
+      LAST_JOB_ADDR=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+        -H "Content-Type: application/json" \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTransaction\",\"params\":[\"${_recent_sig}\",{\"encoding\":\"jsonParsed\",\"maxSupportedTransactionVersion\":0}]}" 2>/dev/null | python3 -c "
+import sys,json
+tx=json.load(sys.stdin).get('result',{})
+msg=tx.get('transaction',{}).get('message',{})
+for ix in msg.get('instructions',[]):
+    if ix.get('programId')=='${NOSANA_JOBS_PROGRAM}':
+        accts=ix.get('accounts',[])
+        if accts:
+            print(accts[0])
+            break
+" 2>/dev/null || echo "")
+    fi
+  fi
+  if [ -n "$LAST_JOB_ADDR" ]; then
+    echo "$LAST_JOB_ADDR" > "$LAST_JOB_ADDR_FILE" 2>/dev/null || true
+    echo "$(date '+%Y-%m-%d %H:%M:%S') BACKFILL - Latest job: ${LAST_JOB_ADDR}"
+  fi
+fi
 
 # Queue position check — extracted so it can run from STATUS_INTERVAL and independently when QUEUED
 check_queue_position() {
