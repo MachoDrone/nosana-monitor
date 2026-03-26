@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.3
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.4
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -317,8 +317,8 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span style="color:#3b82f6;font-weight:700;font-size:13px">\u{25B6}</span>', sa);
-    if (st === 'QUEUED') return tap('QUEUED', '<span style="color:#4ade80;font-weight:600">Q</span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span>', sa);
+    if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
@@ -450,6 +450,10 @@ async function handleDashboardGet(token, env) {
     #gatherFill.breathe{background:#001900}
     @media(max-width:600px){#gatherFill.breathe{background:#151515}}
     @keyframes barBreathe{0%{width:0%}50%{width:100%}100%{width:0%}}
+    @keyframes colorShift{0%{color:#3b82f6}33%{color:#60a5fa}66%{color:#2563eb}100%{color:#3b82f6}}
+    @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
+    .state-running{animation:colorShift 3s ease-in-out infinite}
+    .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
     h1{font-size:18px;margin-bottom:8px;color:#fff}
@@ -555,7 +559,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
-        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-26px">Node<br>Version<br>${latestNodeVersion || '?'}</div></th>
+        <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-26px">Current<br>Node<br>${latestNodeVersion || '?'}</div></th>
         <th data-col="cuda" data-type="string"><div>CUDA</div></th>
         <th data-col="nvidiaDriver" data-type="string"><div>NVIDIA <span class="nv-toggle" id="nvToggle">\u{1F504}</span></div></th>
         <th data-col="cpu" data-type="string"><div>CPU <span class="cpu-toggle" id="cpuToggle">\u{1F504}</span></div></th>
