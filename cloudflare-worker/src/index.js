@@ -1520,6 +1520,12 @@ async function handlePurge(token, request, env) {
   }
 
   await env.FLEET_DATA.put(token, JSON.stringify(data));
+
+  // Also clear from pendingData so isolate cache doesn't resurrect purged entries
+  if (removed > 0 && pendingData.has(token)) {
+    const pending = pendingData.get(token);
+    for (const h of hosts) { delete pending[h]; }
+  }
   return jsonResponse({ ok: true, removed });
 }
 
