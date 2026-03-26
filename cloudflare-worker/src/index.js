@@ -337,6 +337,7 @@ async function handleDashboardGet(token, env) {
     return parts.length ? parts.join(' ') : '0m';
   }
 
+  let durIdx = 0;
   function jobDuration(h) {
     if (!h.jobStart || !h.jobTimeout || Number(h.jobTimeout) === 0) return '-';
     const elapsed = Math.max(0, Math.floor(now / 1000) - Number(h.jobStart));
@@ -345,7 +346,8 @@ async function handleDashboardGet(token, env) {
     const exceeded = elapsed > max;
     const barColor = exceeded ? '#ef4444' : '#4ade80';
     const barHeight = exceeded ? 'height:12px' : '';
-    const bar = '<span class="dur-bar" style="' + barHeight + '"><span class="dur-fill" style="width:' + pct + '%;background:' + barColor + '"></span></span>';
+    const dDelay = ((++durIdx * 3.7) % 10).toFixed(1);
+    const bar = '<span class="dur-bar" style="' + barHeight + '"><span class="dur-fill" style="width:' + pct + '%;background:' + barColor + ';--dur-delay:-' + dDelay + 's"></span></span>';
     const text = fmtDuration(elapsed) + ' / ' + fmtDuration(max);
     const styledText = exceeded ? '<span style="color:#ef4444;font-weight:700">' + text + '</span>' : text;
     return '<span class="dur-mode dur-m-bar">' + tap(exceeded ? '\u{26A0}\u{FE0F} EXCEEDED — ' + text : text, bar) + '</span><span class="dur-mode dur-m-text">' + styledText + '</span>';
@@ -513,7 +515,7 @@ async function handleDashboardGet(token, env) {
     .empty{text-align:center;padding:32px;color:#666}
     .dur-bar{display:inline-block;width:30px;height:8px;background:#333;border-radius:4px;vertical-align:middle}
     .dur-fill{display:block;height:100%;background:#4ade80;border-radius:4px;position:relative;overflow:hidden}
-    .dur-fill::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,1),transparent);animation:durSweep 10s linear infinite}
+    .dur-fill::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,1),transparent);animation:durSweep 10s linear infinite;animation-delay:var(--dur-delay,0s)}
     .dur-m-text{display:none}
     body.dur-text .dur-m-bar{display:none}
     body.dur-text .dur-m-text{display:inline}
