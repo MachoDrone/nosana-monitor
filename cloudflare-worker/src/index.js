@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.7
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.9
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -317,7 +317,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><span class="state-running" style="font-weight:700;font-size:13px">\u{25B6}</span></span>', sa);
     if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
@@ -453,6 +453,10 @@ async function handleDashboardGet(token, env) {
     @keyframes durSweep{0%{left:-100%}5%{left:-100%}10%{left:100%}100%{left:100%}}
     @keyframes colorShift{0%{color:#3b82f6}14%{color:#60a5fa}28%{color:#93c5fd}42%{color:#2563eb}57%{color:#1d4ed8}71%{color:#3b82f6}85%{color:#7dd3fc}100%{color:#3b82f6}}
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
+    .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
+    .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+    .run-ring::before{content:'';position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;border:2px solid transparent;border-top:2px solid #3b82f6;border-right:2px solid #3b82f6;border-bottom:2px dotted #3b82f6;border-left:2px dotted #3b82f6;animation:ringRotate 3s linear infinite;box-sizing:border-box}
+    @keyframes ringRotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
     .state-running{animation:colorShift 6s ease-in-out infinite}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
