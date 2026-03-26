@@ -1017,7 +1017,11 @@ async function handleDashboardGet(token, env) {
         addArrow(headers[3], sortDir);
         const tbody = table.querySelector('tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => (a.children[3] ? a.children[3].textContent.trim() : '').localeCompare(b.children[3] ? b.children[3].textContent.trim() : ''));
+        rows.sort((a, b) => {
+          const cmp = (a.children[3] ? a.children[3].textContent.trim() : '').localeCompare(b.children[3] ? b.children[3].textContent.trim() : '');
+          if (cmp === 0) { let gi = -1; headers.forEach((h,i) => { if (h.dataset.col === 'gpuid') gi = i; }); if (gi >= 0) return (parseFloat(a.children[gi]?.textContent.trim()) || 0) - (parseFloat(b.children[gi]?.textContent.trim()) || 0); }
+          return cmp;
+        });
         rows.forEach(r => tbody.appendChild(r));
       }
 
@@ -1071,17 +1075,30 @@ async function handleDashboardGet(token, env) {
           const tbody = table.querySelector('tbody');
           const rows = Array.from(tbody.querySelectorAll('tr'));
 
+          // Find GPU ID column index for sub-sorting
+          let gpuIdIdx = -1;
+          headers.forEach((h, i) => { if (h.dataset.col === 'gpuid') gpuIdIdx = i; });
+
           rows.sort((a, b) => {
             const tdA = a.children[idx];
             const tdB = b.children[idx];
             const cellA = tdA ? tdA.textContent.trim() : '';
             const cellB = tdB ? tdB.textContent.trim() : '';
+            let cmp;
             if (type === 'num') {
               const na = parseFloat((tdA && tdA.dataset.sort) || cellA) || 0;
               const nb = parseFloat((tdB && tdB.dataset.sort) || cellB) || 0;
-              return (na - nb) * sortDir;
+              cmp = (na - nb) * sortDir;
+            } else {
+              cmp = cellA.localeCompare(cellB) * sortDir;
             }
-            return cellA.localeCompare(cellB) * sortDir;
+            // Sub-sort by GPU ID when primary sort is equal
+            if (cmp === 0 && gpuIdIdx >= 0) {
+              const ga = parseFloat(a.children[gpuIdIdx]?.textContent.trim()) || 0;
+              const gb = parseFloat(b.children[gpuIdIdx]?.textContent.trim()) || 0;
+              return ga - gb;
+            }
+            return cmp;
           });
 
           rows.forEach(r => tbody.appendChild(r));
