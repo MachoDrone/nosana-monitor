@@ -299,14 +299,12 @@ for line in sys.stdin:
   fi
 fi
 
-# Internal IP: get host LAN IP via one-shot host-networked container
-# Auto-detect hostname from Docker API
-INTERNAL_IP=""
+# IP detection (one-time on startup)
 _docker_hostname=$(curl -sf --unix-socket /var/run/docker.sock http://localhost/info 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Name',''))" 2>/dev/null || echo "")
 INTERNAL_IP=$(docker run --rm --net=host ubuntu hostname -I 2>/dev/null | awk '{print $1}' || echo "")
-if [ -n "$INTERNAL_IP" ]; then
-  echo "  Internal IP: ${INTERNAL_IP}"
-fi
+EXTERNAL_IP=$(curl -sf --max-time 5 https://ifconfig.me 2>/dev/null || curl -sf --max-time 5 https://api.ipify.org 2>/dev/null || echo "")
+if [ -n "$INTERNAL_IP" ]; then echo "  Internal IP: ${INTERNAL_IP}"; fi
+if [ -n "$EXTERNAL_IP" ]; then echo "  External IP: ${EXTERNAL_IP}"; fi
 
 # Auto-detect hostname if not set
 if [ -z "$HOST_NAME" ] && [ -n "$_docker_hostname" ]; then
@@ -813,7 +811,7 @@ print(b''.join(reversed(o)).decode())
       _dash_cuda=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('gpus',{}).get('runtime_version',''))" 2>/dev/null || echo "")
       _dash_sysenv=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('system_environment',''))" 2>/dev/null || echo "")
       _dash_gpuname=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; devs=json.load(sys.stdin).get('info',{}).get('gpus',{}).get('devices',[]); print(devs[0]['name'] if devs else '')" 2>/dev/null || echo "")
-      _dash_extip=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('network',{}).get('ip',''))" 2>/dev/null || echo "")
+      _dash_extip="${EXTERNAL_IP:-}"
       _dash_intip="${INTERNAL_IP:-}"
       # Running job address from Solana RPC (already queried)
       if [ -n "${_run_addr:-}" ]; then
