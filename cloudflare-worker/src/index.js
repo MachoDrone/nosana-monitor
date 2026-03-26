@@ -455,7 +455,9 @@ async function handleDashboardGet(token, env) {
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
     .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-    .run-ring::before{content:'';position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;border:2px solid transparent;border-top:2px solid #3b82f6;border-right:2px solid #3b82f6;border-bottom:2px dotted #3b82f6;border-left:2px dotted #3b82f6;animation:ringRotate 3s linear infinite;box-sizing:border-box}
+    .run-ring::before,.run-ring::after{content:'';position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;box-sizing:border-box;animation:ringRotate 3s linear infinite}
+    .run-ring::before{border:2px solid #3b82f6;clip-path:polygon(50% 0%,100% 0%,100% 100%,50% 100%)}
+    .run-ring::after{border:2px dashed #3b82f6;clip-path:polygon(0% 0%,50% 0%,50% 100%,0% 100%)}
     @keyframes ringRotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
     .state-running{animation:colorShift 6s ease-in-out infinite}
     .state-queued{animation:colorShiftGreen 3s ease-in-out infinite}
