@@ -319,7 +319,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') { const d = (++runIdx * 7.3) % 30; return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa); }
+    if (st === 'RUNNING') { const d = (++runIdx * 17.3) % 75; return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa); }
     if (st === 'QUEUED') { const d = (++queueIdx * 2.3) % 7; return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot2" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot3" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/></svg></span>', sa); }
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
@@ -460,10 +460,10 @@ async function handleDashboardGet(token, env) {
     .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%) rotate(5deg)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:blueDashVary 30s linear infinite}
+    .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:blueDashVary 75s linear infinite}
     .ring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     @keyframes dashTravel{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-9.5}}
-    @keyframes blueDashVary{0%{stroke-dashoffset:0}8%{stroke-dashoffset:-9.5}18%{stroke-dashoffset:-19}28%{stroke-dashoffset:-28.5}36%{stroke-dashoffset:-38}46%{stroke-dashoffset:-47.5}56%{stroke-dashoffset:-57}64%{stroke-dashoffset:-66.5}74%{stroke-dashoffset:-76}82%{stroke-dashoffset:-85.5}90%{stroke-dashoffset:-95}91%{stroke-dashoffset:-114}100%{stroke-dashoffset:-123.5}}
+    @keyframes blueDashVary{0%{stroke-dashoffset:0}12%{stroke-dashoffset:-114}20%{stroke-dashoffset:-228}30%{stroke-dashoffset:-304}38%{stroke-dashoffset:-418}48%{stroke-dashoffset:-494}56%{stroke-dashoffset:-589}66%{stroke-dashoffset:-684}76%{stroke-dashoffset:-760}77%{stroke-dashoffset:-798.5}86%{stroke-dashoffset:-884}100%{stroke-dashoffset:-969.5}}
     .state-running{color:#3b82f6}
     .queue-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .queue-dots{position:absolute;top:0;left:0;width:100%;height:100%}
