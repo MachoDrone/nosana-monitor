@@ -315,13 +315,14 @@ async function handleDashboardGet(token, env) {
 
   let queueIdx = 0;
   let runIdx = 0;
-  function stateIndicator(s, stateSince) {
+  function stateIndicator(s, stateSince, q) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
     if (st === 'RUNNING') { const d = (++runIdx * 17.3) % 75; return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M12 7L9 12L15 12L12 17" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>', sa); }
+    if (st === 'QUEUED' && (!q || q === '-' || q === '0')) return tap('Transition/Restarting', dot('#f97316'), sa);
     if (st === 'QUEUED') { const d = (++queueIdx * 2.3) % 7; return tap('QUEUED', '<span class="queue-ring"><svg class="queue-svg" viewBox="0 0 24 24"><circle class="qring-solid" cx="12" cy="12" r="10"/><circle class="qring-dash" cx="12" cy="12" r="10" style="animation-delay:-' + d.toFixed(1) + 's"/></svg><svg class="queue-dots" viewBox="0 0 24 24"><circle class="qdot qdot1" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot2" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/><circle class="qdot qdot3" r="1.8" style="animation-delay:-' + d.toFixed(1) + 's"/></svg></span>', sa); }
-    if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
+    if (st === 'RESTARTING') return tap('Transition/Restarting', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
   }
 
@@ -414,7 +415,7 @@ async function handleDashboardGet(token, env) {
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
-        <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
+        <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince, h.q)}</td>
         <td class="running-job">${h.runningJob ? `<a href="https://explore.nosana.com/jobs/${h.runningJob}" target="_blank">${h.runningJob.slice(0, 5)}</a>` : '-'}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
