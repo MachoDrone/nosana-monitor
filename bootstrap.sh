@@ -12,8 +12,10 @@
 
 set -euo pipefail
 
-SCRIPT_URL="https://raw.githubusercontent.com/MachoDrone/nosana-monitor/main/bootstrap.sh"
+BRANCH="${NOSANA_BOOTSTRAP_BRANCH:-main}"
+SCRIPT_URL="https://raw.githubusercontent.com/MachoDrone/nosana-monitor/${BRANCH}/bootstrap.sh"
 REPO_URL="https://github.com/MachoDrone/nosana-monitor.git"
+REPO_BRANCH="$BRANCH"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  CONTAINER SELF-LAUNCH
@@ -77,6 +79,7 @@ BANNER
         -e HOST_UID="$(id -u)" \
         -e HOST_GID="$(id -g)" \
         -e HOST_HOME="$HOME" \
+        -e NOSANA_BOOTSTRAP_BRANCH="$BRANCH" \
         node:20-slim \
         bash -c "apt-get update -qq > /dev/null 2>&1 && \
                  apt-get install -y -qq git curl > /dev/null 2>&1 && \
@@ -167,7 +170,7 @@ echo -e "\n${BOLD}${GREEN}  Bootstrap environment ready.${NC}\n"
 print_header "Step 1/6 — Downloading source code"
 
 print_info "Cloning ${CYAN}${REPO_URL}${NC}"
-git clone --depth 1 -q "$REPO_URL" /tmp/nosana-monitor
+git clone --depth 1 -q -b "$REPO_BRANCH" "$REPO_URL" /tmp/nosana-monitor
 print_ok "Source code ready."
 
 # ═══════════════════════════════════════════════════════════════════════════
