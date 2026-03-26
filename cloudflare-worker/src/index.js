@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.07.2
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.08.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -15,6 +15,8 @@ import { sendPushNotification, generateVapidKeys } from './push.js';
 
 const STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes (3 missed heartbeats)
 const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
+const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+const NOSANA_JOBS_PROGRAM = 'nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM';
 
 // KV write throttle: max 1 write per token per interval, but accumulates
 // ALL host updates between writes so no host's seen timestamp goes stale.
@@ -195,6 +197,7 @@ async function handleStatusPost(token, request, env) {
     extIp: extIp || (prev && prev.extIp) || '',
     intIp: intIp || (prev && prev.intIp) || '',
     rpcCached: rpcCached || false,
+    cachedRunAddr: body.cachedRunAddr || (prev && prev.cachedRunAddr) || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -272,7 +275,12 @@ async function handleStatusPost(token, request, env) {
   const rawInterval = Math.ceil(86400 * hostCount / (85800 - 5 * hostCount));
   const recommendedInterval = Math.max(5, Math.min(300, Math.ceil(rawInterval / 5) * 5));
 
-  return jsonResponse({ ok: true, recommendedInterval });
+  // Include worker-side RPC state so monitor can skip its own Solana calls
+  const hostData = data[dataKey] || {};
+  const rpcState = hostData.rpcState || '';
+  const cachedRunAddr = hostData.cachedRunAddr || '';
+
+  return jsonResponse({ ok: true, recommendedInterval, rpcState, cachedRunAddr });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1845,6 +1853,86 @@ async function handleScheduled(env) {
         data[hostName].alerted = true;
         changed = true;
       }
+    }
+
+    // Batch Solana RPC: check all hosts' RunAccounts in one call
+    // Replaces per-host getProgramAccounts with batched getMultipleAccounts
+    const hostEntries = Object.entries(data);
+    const runAddrs = [];
+    const runAddrMap = {}; // runAddr → dataKey
+    for (const [key, h] of hostEntries) {
+      if (h.cachedRunAddr) {
+        runAddrs.push(h.cachedRunAddr);
+        runAddrMap[h.cachedRunAddr] = key;
+      }
+    }
+
+    if (runAddrs.length > 0) {
+      // Batch up to 100 addresses per call
+      for (let i = 0; i < runAddrs.length; i += 100) {
+        const batch = runAddrs.slice(i, i + 100);
+        try {
+          const rpcResp = await fetch(SOLANA_RPC, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0', id: 1,
+              method: 'getMultipleAccounts',
+              params: [batch, { encoding: 'base64', dataSlice: { offset: 0, length: 0 } }],
+            }),
+          });
+          if (rpcResp.ok) {
+            const rpcData = await rpcResp.json();
+            if (rpcData.result && rpcData.result.value) {
+              rpcData.result.value.forEach((acct, idx) => {
+                const addr = batch[idx];
+                const dataKey = runAddrMap[addr];
+                if (dataKey && data[dataKey]) {
+                  // Store RPC result: account exists = RUNNING, null = not running
+                  data[dataKey].rpcState = acct ? 'RUNNING' : 'QUEUED';
+                  data[dataKey].rpcChecked = now;
+                  changed = true;
+                }
+              });
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // For hosts without cached RunAccount, do a single getProgramAccounts scan
+    // but only for hosts that haven't been checked recently
+    const uncheckedHosts = hostEntries.filter(([key, h]) =>
+      !h.cachedRunAddr && Number(h.n) === 1 && (!h.rpcChecked || now - h.rpcChecked > 120000)
+    );
+    for (const [key, h] of uncheckedHosts) {
+      if (!h.nodeAddress) continue;
+      try {
+        const rpcResp = await fetch(SOLANA_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1,
+            method: 'getProgramAccounts',
+            params: [NOSANA_JOBS_PROGRAM, {
+              filters: [{ dataSize: 120 }, { memcmp: { offset: 40, bytes: h.nodeAddress } }],
+              encoding: 'base64', dataSlice: { offset: 8, length: 32 },
+            }],
+          }),
+        });
+        if (rpcResp.ok) {
+          const rpcData = await rpcResp.json();
+          if (!rpcData.error) {
+            const results = rpcData.result || [];
+            data[key].rpcState = results.length > 0 ? 'RUNNING' : 'QUEUED';
+            data[key].rpcChecked = now;
+            if (results.length > 0) {
+              data[key].cachedRunAddr = results[0].pubkey;
+            }
+            changed = true;
+          }
+        }
+      } catch {}
     }
 
     // Single KV write per token per cron tick (only if anything changed)

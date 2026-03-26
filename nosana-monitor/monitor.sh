@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.07.6"
+VERSION="0.08.0"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -227,13 +227,26 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   _resp=$(curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\",\"extIp\":\"${_extip}\",\"intIp\":\"${_intip}\",\"rpcCached\":${RPC_CACHED}}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
-  # Dynamic interval: adjust push frequency based on fleet size (returned by worker)
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\",\"extIp\":\"${_extip}\",\"intIp\":\"${_intip}\",\"rpcCached\":${RPC_CACHED},\"cachedRunAddr\":\"${CACHED_RUN_ADDR}\"}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
+  # Parse worker response for dynamic interval and RPC state
   if [ "$DASHBOARD_PUSH_OK" = "1" ] && [ -n "$_resp" ]; then
-    _new_interval=$(echo "$_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('recommendedInterval',''))" 2>/dev/null || echo "")
+    _parsed=$(echo "$_resp" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(d.get('recommendedInterval',''))
+print(d.get('rpcState',''))
+print(d.get('cachedRunAddr',''))
+" 2>/dev/null || echo "")
+    _new_interval=$(echo "$_parsed" | sed -n '1p')
+    WORKER_RPC_STATE=$(echo "$_parsed" | sed -n '2p')
+    _worker_run_addr=$(echo "$_parsed" | sed -n '3p')
     if [ -n "$_new_interval" ] && [ "$_new_interval" -gt 0 ] 2>/dev/null && [ "$_new_interval" != "$DASHBOARD_INTERVAL" ]; then
       echo "$(date '+%Y-%m-%d %H:%M:%S') INTERVAL - ${DASHBOARD_INTERVAL}s -> ${_new_interval}s (fleet size adjusted)"
       DASHBOARD_INTERVAL="$_new_interval"
+    fi
+    # Cache RunAccount address from worker if we don't have one
+    if [ -n "$_worker_run_addr" ] && [ -z "$CACHED_RUN_ADDR" ]; then
+      CACHED_RUN_ADDR="$_worker_run_addr"
     fi
   fi
 }
@@ -696,9 +709,22 @@ else:
       else
         _dash_q=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; v=json.load(sys.stdin).get('queue',''); print(v if v and v!='None' else '-')" 2>/dev/null || echo "-")
       fi
-      # Derive display state from Solana RPC (source of truth)
-      # Check every SOLANA_CHECK_INTERVAL seconds to avoid public RPC rate limits
-      if [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
+      # Derive display state: prefer worker-side RPC (Phase 2) over local RPC
+      if [ -n "$WORKER_RPC_STATE" ] && [ "$WORKER_RPC_STATE" != "" ]; then
+        # Worker already checked Solana RPC for us — use its result
+        if [ "$WORKER_RPC_STATE" = "RUNNING" ]; then
+          _dash_s="RUNNING"
+          if [ "$LAST_DASH_STATE" != "RUNNING" ]; then
+            RUNNING_SINCE=$NOW
+          fi
+          _dash_jobstart="${RUNNING_SINCE:-$NOW}"
+        else
+          _dash_s="$WORKER_RPC_STATE"
+        fi
+        LAST_DASH_STATE="$_dash_s"
+        RPC_CACHED="false"
+      # Fall back to local Solana RPC if worker doesn't provide state
+      elif [ $(( NOW - LAST_SOLANA_CHECK )) -ge "$SOLANA_CHECK_INTERVAL" ]; then
       LAST_SOLANA_CHECK=$NOW
       _run_count=""
       _rpc_resp=""
