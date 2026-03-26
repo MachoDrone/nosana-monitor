@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-VERSION="0.06.0"
+VERSION="0.06.1"
 
 # Defaults
 KEY_PATH="/root/.nosana/nosana_key.json"
@@ -280,7 +280,8 @@ LAST_DASH_JOBSTART="0"
 LAST_DASH_JOBTIMEOUT="0"
 RUNNING_STATE_FILE="/state/running-since"
 RUNNING_SINCE=0  # always re-fetch from blockchain on startup
-LAST_JOB_ADDR=""  # persists across state changes for "Latest Job" column
+LAST_JOB_ADDR_FILE="/state/last-job-addr"
+LAST_JOB_ADDR=$(cat "$LAST_JOB_ADDR_FILE" 2>/dev/null || echo "")
 SOLANA_RPC="https://api.mainnet-beta.solana.com"
 NOSANA_JOBS_PROGRAM="nosJhNRqr2bc9g1nfGDcXXTXvYUmxD4cVwy2pMWhrYM"
 SOLANA_CHECK_INTERVAL=60  # check Solana RPC every 60s (avoid rate limits)
@@ -721,6 +722,7 @@ print(b''.join(reversed(o)).decode())
       # Running job address from Solana RPC (already queried)
       if [ -n "${_run_addr:-}" ]; then
         LAST_JOB_ADDR="$_run_addr"
+        echo "$LAST_JOB_ADDR" > "$LAST_JOB_ADDR_FILE" 2>/dev/null || true
       fi
       _dash_runningjob="${LAST_JOB_ADDR:-}"
     else
