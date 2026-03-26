@@ -1339,8 +1339,7 @@ async function handleDashboardGet(token, env) {
       startBarAnimation();
     })();
   </script>
-  ${versionLabel ? '<div style="text-align:right;font-size:10px;color:#555;margin-top:8px">' + versionLabel + '</div>' : ''}
-</body>
+  ${versionLabel ? '<div style="text-align:right;font-size:10px;color:#555;margin-top:8px">' + versionLabel + '</div>' : ''}</body>
 </html>`;
 
   return htmlResponse(html);
