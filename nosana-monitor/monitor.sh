@@ -227,7 +227,7 @@ dashboard_push() {
   _host="${HOST_NAME:-$(hostname)}"
   _resp=$(curl -sf --max-time 5 -X POST "$DASHBOARD_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\",\"extIp\":\"${_extip}\",\"intIp\":\"${_intip}\"}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
+    -d "{\"host\":\"${_host}\",\"n\":${_n},\"q\":\"${_q}\",\"state\":\"${_s}\",\"nodeAddress\":\"${PUBKEY}\",\"version\":\"${_v}\",\"dl\":\"${_dl}\",\"ul\":\"${_ul}\",\"ping\":\"${_ping}\",\"disk\":\"${_disk}\",\"gpu\":\"${_gpu}\",\"tier\":\"${_tier}\",\"ram\":\"${_ram}\",\"gpuId\":\"${_gpuid}\",\"rewards\":\"${_rewards}\",\"jobStart\":${_jstart:-0},\"jobTimeout\":${_jtimeout:-0},\"queueTotal\":\"${_qtotal}\",\"marketSlug\":\"${MARKET_SLUG}\",\"marketAddress\":\"${MARKET_ADDRESS}\",\"nodeUptime\":\"${_dash_uptime:-}\",\"containerStoppedAt\":\"${_dash_stopped:-}\",\"downApprox\":${_dash_down_approx:-false},\"downLabel\":\"${_dash_down_label:-Node}\",\"stateSince\":${STATE_SINCE_MS:-0},\"monitorVersion\":\"${VERSION}\",\"sol\":\"${_sol}\",\"nos\":\"${_nos}\",\"stakedNos\":\"${_staked}\",\"minStake\":\"${_minstake}\",\"cpu\":\"${_cpu}\",\"nvidiaDriver\":\"${_nvidiadrv}\",\"cudaVersion\":\"${_cuda}\",\"sysEnv\":\"${_sysenv}\",\"gpuName\":\"${_gpuname}\",\"runningJob\":\"${_runjob}\",\"extIp\":\"${_extip}\",\"intIp\":\"${_intip}\",\"rpcCached\":${RPC_CACHED}}" 2>/dev/null) && DASHBOARD_PUSH_OK=1 || DASHBOARD_PUSH_OK=0
   # Dynamic interval: adjust push frequency based on fleet size (returned by worker)
   if [ "$DASHBOARD_PUSH_OK" = "1" ] && [ -n "$_resp" ]; then
     _new_interval=$(echo "$_resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('recommendedInterval',''))" 2>/dev/null || echo "")
@@ -677,6 +677,7 @@ else:
 
   # Dashboard push: immediate on state change, otherwise every DASHBOARD_INTERVAL
   if [ -n "$DASHBOARD_URL" ]; then
+    RPC_CACHED="${RPC_CACHED:-false}"
     if [ -n "$HEALTH_RESPONSE" ]; then
       _dash_n=1
       _dash_stopped=""
@@ -700,11 +701,13 @@ if 'error' in r:
 else:
     print(len(r.get('result',[])))
 " 2>/dev/null || echo "")
+      RPC_CACHED="false"
       if [ "$_run_count" = "RPC_ERROR" ]; then
         # Rate limited or RPC error — keep cached state
         _dash_s="${LAST_DASH_STATE:-QUEUED}"
         _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+        RPC_CACHED="true"
       elif [ "$_run_count" -gt 0 ] 2>/dev/null; then
         _dash_s="RUNNING"
         # Get real job start time from blockchain (RunAccount creation tx)
@@ -780,6 +783,7 @@ print(b''.join(reversed(o)).decode())
         _dash_s="${LAST_DASH_STATE:-QUEUED}"
         _dash_jobstart="${LAST_DASH_JOBSTART:-0}"
         _dash_jobtimeout="${LAST_DASH_JOBTIMEOUT:-0}"
+        RPC_CACHED="true"
       fi
       else
         # Between RPC checks — use cached state

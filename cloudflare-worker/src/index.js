@@ -135,7 +135,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob, extIp, intIp } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob, extIp, intIp, rpcCached } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Key by nodeAddress (unique per GPU) if available, otherwise host name
@@ -194,6 +194,7 @@ async function handleStatusPost(token, request, env) {
     runningJob: runningJob || (prev && prev.runningJob) || '',
     extIp: extIp || (prev && prev.extIp) || '',
     intIp: intIp || (prev && prev.intIp) || '',
+    rpcCached: rpcCached || false,
     seen: Date.now(),
     alerted: isDown,
   };
@@ -437,7 +438,7 @@ async function handleDashboardGet(token, env) {
 
   const rows = hosts
     .map(
-      ([name, h]) => `
+      ([name, h]) => { const rc = h.rpcCached ? ' cached' : ''; return `
       <tr data-host="${name}" data-node="${h.nodeAddress || ''}" data-n="${h.n}" data-state="${h.state || ''}" data-q="${h.q}" data-seen="${h.seen}">
         <td class="edit-col" style="display:none;padding:2px"><input type="checkbox" class="row-select" value="${name}"></td>
         <td class="seen" data-sort="${h.seen ? Math.round((now - h.seen) / 1000) : 99999}">${seenCell(h)}</td>
@@ -447,10 +448,10 @@ async function handleDashboardGet(token, env) {
         <td class="node-addr">${h.nodeAddress ? `<a href="https://explore.nosana.com/hosts/${h.nodeAddress}" target="_blank">${h.nodeAddress.slice(0, 5)}</a>` : '-'}</td>
         <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
-        <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince, h.q)}</td>
-        <td class="running-job">${h.runningJob ? `<a href="https://explore.nosana.com/jobs/${h.runningJob}" target="_blank">${h.runningJob.slice(0, 5)}</a>` : '-'}</td>
-        <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
-        <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
+        <td class="${rc}">${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince, h.q)}</td>
+        <td class="running-job${rc}">${h.runningJob ? `<a href="https://explore.nosana.com/jobs/${h.runningJob}" target="_blank">${h.runningJob.slice(0, 5)}</a>` : '-'}</td>
+        <td class="dur${rc}">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
+        <td class="q${rc}">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
         <td class="disk">${h.disk || '-'}</td>
         <td class="dl">${h.dl ? tap('single-stream speed', String(Math.round(Number(h.dl)))) : '-'}</td>
@@ -466,7 +467,7 @@ async function handleDashboardGet(token, env) {
         <td class="nvidia-drv"><span class="nv-m-full">${h.nvidiaDriver || '-'}</span><span class="nv-m-compact">${h.nvidiaDriver ? h.nvidiaDriver.split('.')[0] : '-'}</span></td>
         <td class="cpu"><span class="cpu-m-full">${h.cpu || '-'}</span><span class="cpu-m-compact">${h.cpu ? h.cpu.split(' ')[0] : '-'}</span></td>
         <td class="sysenv"><span class="sys-m-full">${h.sysEnv || '-'}</span><span class="sys-m-compact">${h.sysEnv ? h.sysEnv.split('-')[0] : '-'}</span></td>
-      </tr>`,
+      </tr>`; },
     )
     .join('\n');
 
@@ -542,6 +543,7 @@ async function handleDashboardGet(token, env) {
     td.rewards a:hover{text-decoration:underline}
     td.q{font-size:12px;color:#ccc}
     td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur,td.cuda,td.nvidia-drv,td.cpu,td.sysenv,td.running-job{font-size:11px;color:#888}
+    .cached{opacity:0.35}
     td.running-job a{color:#60a5fa;text-decoration:none}
     td.running-job a:hover{text-decoration:underline}
     td.sol{font-size:11px;color:#7B3FCC}
