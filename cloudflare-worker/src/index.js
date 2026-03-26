@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.06.0
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.06.3
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -18,10 +18,12 @@ const TOKEN_RE = /^\/d\/([A-Za-z0-9_-]+)/;
 
 // KV write throttle: max 1 write per token per interval, but accumulates
 // ALL host updates between writes so no host's seen timestamp goes stale.
-// Budget: 720 writes/day per token regardless of fleet size (1-200 hosts).
 const KV_WRITE_INTERVAL_MS = 2 * 60 * 1000;
 const lastKvWrite = new Map(); // token → timestamp
 const pendingData = new Map(); // token → full data object with accumulated updates
+const knownTokens = new Set(); // in-memory cache — skip _tokens KV read after first POST
+let cachedLatestNodeVersion = ''; // in-memory cache — avoid KV read on every GET
+let lastVersionFetch = 0; // throttle Docker Hub fetch to once per hour
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -210,15 +212,19 @@ async function handleStatusPost(token, request, env) {
     }
   }
 
-  // Register token for cron (stale detection)
-  try {
-    const tokenListRaw = await env.FLEET_DATA.get('_tokens');
-    const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
-    if (!tokenSet.has(token)) {
-      tokenSet.add(token);
-      await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
-    }
-  } catch {}
+  // Register token for cron (stale detection) — cached in memory, KV only on first encounter
+  if (!knownTokens.has(token)) {
+    try {
+      const tokenListRaw = await env.FLEET_DATA.get('_tokens');
+      const tokenSet = new Set(tokenListRaw ? JSON.parse(tokenListRaw) : []);
+      if (!tokenSet.has(token)) {
+        tokenSet.add(token);
+        await env.FLEET_DATA.put('_tokens', JSON.stringify([...tokenSet]));
+      }
+      // Cache all known tokens so we never read _tokens again on this isolate
+      tokenSet.forEach(t => knownTokens.add(t));
+    } catch {}
+  }
 
   // --- Recovery alert (immediate, no KV write needed) ---
   if (wasDown && allUpNow) {
@@ -265,7 +271,11 @@ async function handleDashboardGet(token, env) {
 
 
   const vapidPublicKey = env.VAPID_PUBLIC_KEY || '';
-  const latestNodeVersion = (await env.FLEET_DATA.get('_latestNodeVersion')) || '';
+  // Serve from memory cache; fall back to KV only on cold isolate start
+  if (!cachedLatestNodeVersion) {
+    cachedLatestNodeVersion = (await env.FLEET_DATA.get('_latestNodeVersion')) || '';
+  }
+  const latestNodeVersion = cachedLatestNodeVersion;
 
   const hosts = Object.entries(data).sort(([a], [b]) => a.localeCompare(b));
   const now = Date.now();
@@ -1588,17 +1598,24 @@ async function handleRequest(request, env) {
 async function handleScheduled(env) {
   const now = Date.now();
 
-  // Fetch latest nosana-node version from Docker Hub (one call per cron tick for entire fleet)
-  try {
-    const resp = await fetch('https://hub.docker.com/v2/repositories/nosana/nosana-node/tags/?page_size=5&ordering=last_updated');
-    if (resp.ok) {
-      const tags = await resp.json();
-      const latest = (tags.results || []).find(t => /^v?\d+\.\d+\.\d+$/.test(t.name));
-      if (latest) {
-        await env.FLEET_DATA.put('_latestNodeVersion', latest.name.replace(/^v/, ''));
+  // Fetch latest nosana-node version from Docker Hub — hourly, write KV only on change
+  if (now - lastVersionFetch >= 60 * 60 * 1000) {
+    lastVersionFetch = now;
+    try {
+      const resp = await fetch('https://hub.docker.com/v2/repositories/nosana/nosana-node/tags/?page_size=5&ordering=last_updated');
+      if (resp.ok) {
+        const tags = await resp.json();
+        const latest = (tags.results || []).find(t => /^v?\d+\.\d+\.\d+$/.test(t.name));
+        if (latest) {
+          const ver = latest.name.replace(/^v/, '');
+          if (ver !== cachedLatestNodeVersion) {
+            await env.FLEET_DATA.put('_latestNodeVersion', ver);
+            cachedLatestNodeVersion = ver;
+          }
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   // Get tokens from KV
   const kvTokenList = await env.FLEET_DATA.get('_tokens');
