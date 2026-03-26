@@ -491,8 +491,9 @@ async function handleDashboardGet(token, env) {
     th{color:#aaa;font-size:10px;cursor:pointer;user-select:none;
        padding:6px 8px;vertical-align:bottom}
     th{height:80px;position:relative}
-    th div{position:absolute;top:4px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
-    th div.ml{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px)}
+    th div{position:absolute;bottom:2px;left:calc(50% - 5px);transform:rotate(-90deg);transform-origin:0 0;white-space:nowrap}
+    th div.ml2{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px}
+    th div.ml3{white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-26px}
     th:hover{color:#fff}
     th .sort-arrow{font-size:8px;color:#4ade80;margin-right:4px}
     td.host{text-align:left;font-weight:600;color:#fff;padding:0 4px}
@@ -573,11 +574,11 @@ async function handleDashboardGet(token, env) {
         <th data-col="seen" data-type="num"><div>Monitor HB <span class="hb-toggle" id="hbToggle">\u{1F504}</span></div></th>
         <th data-col="tier" data-type="string"><div>Status</div></th>
         <th data-col="host" data-type="string"><div>PC</div></th>
-        <th data-col="node" data-type="string"><div class="ml">Host<br>Address</div></th>
+        <th data-col="node" data-type="string"><div class="ml2">Host<br>Address</div></th>
         <th data-col="sol" data-type="num"><div>SOL</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
-        <th data-col="runningJob" data-type="string"><div class="ml">Latest<br>Job</div></th>
+        <th data-col="runningJob" data-type="string"><div class="ml2">Latest<br>Job</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
@@ -586,11 +587,11 @@ async function handleDashboardGet(token, env) {
         <th data-col="ul" data-type="num"><div>UL</div></th>
         <th data-col="ping" data-type="num"><div>Ping</div></th>
         <th data-col="stakedNos" data-type="num"><div>Staked NOS</div></th>
-        <th data-col="rewards" data-type="num"><div class="ml">Rewards<br>to claim</div></th>
+        <th data-col="rewards" data-type="num"><div class="ml2">Rewards<br>to claim</div></th>
         <th data-col="nos" data-type="num"><div>NOS</div></th>
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
-        <th data-col="ver" data-type="string"><div class="ml">Current<br>Node<br>${latestNodeVersion || '?'}</div></th>
+        <th data-col="ver" data-type="string"><div class="ml3">Current<br>Node<br>${latestNodeVersion || '?'}</div></th>
         <th data-col="cuda" data-type="string"><div>CUDA</div></th>
         <th data-col="nvidiaDriver" data-type="string"><div>NVIDIA <span class="nv-toggle" id="nvToggle">\u{1F504}</span></div></th>
         <th data-col="cpu" data-type="string"><div>CPU <span class="cpu-toggle" id="cpuToggle">\u{1F504}</span></div></th>
