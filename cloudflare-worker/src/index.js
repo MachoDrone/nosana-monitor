@@ -1,5 +1,5 @@
 /**
- * Nosana Fleet Dashboard — Cloudflare Worker  v0.04.9
+ * Nosana Fleet Dashboard — Cloudflare Worker  v0.05.0
  * Receives host status from monitors, serves a dashboard, and sends
  * Web Push alerts when hosts go down or become stale.
  *
@@ -133,7 +133,7 @@ async function handleStatusPost(token, request, env) {
     return jsonResponse({ error: 'Invalid JSON' }, 400);
   }
 
-  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake } = body;
+  const { host, n, q, state, nodeAddress, version, dl, ul, ping, disk, gpu, tier, ram, gpuId, rewards, jobStart, jobTimeout, queueTotal, marketSlug, marketAddress, nodeUptime, containerStoppedAt, stateSince, downApprox, downLabel, monitorVersion, sol, nos, stakedNos, minStake, cpu, nvidiaDriver, cudaVersion, sysEnv, gpuName, runningJob } = body;
   if (!host) return jsonResponse({ error: 'Missing host' }, 400);
 
   // Read current data: prefer pending (accumulated updates) over KV
@@ -181,6 +181,12 @@ async function handleStatusPost(token, request, env) {
     nos: nos || (prev && prev.nos) || '',
     stakedNos: stakedNos || (prev && prev.stakedNos) || '',
     minStake: minStake || (prev && prev.minStake) || '',
+    cpu: cpu || (prev && prev.cpu) || '',
+    nvidiaDriver: nvidiaDriver || (prev && prev.nvidiaDriver) || '',
+    cudaVersion: cudaVersion || (prev && prev.cudaVersion) || '',
+    sysEnv: sysEnv || (prev && prev.sysEnv) || '',
+    gpuName: gpuName || (prev && prev.gpuName) || '',
+    runningJob: runningJob || '',
     seen: Date.now(),
     alerted: isDown,
   };
@@ -405,6 +411,7 @@ async function handleDashboardGet(token, env) {
         <td class="sol">${h.sol || '-'}</td>
         <td>${indicator(h.n, h.seen, h.nodeUptime, h.containerStoppedAt, h.downApprox, h.downLabel)}</td>
         <td>${isDown(h.n, h.seen) ? '<span style="color:#555">\u{27F5}</span>' : stateIndicator(h.state, h.stateSince)}</td>
+        <td class="running-job">${h.runningJob ? `<a href="https://explore.nosana.com/jobs/${h.runningJob}" target="_blank">${h.runningJob.slice(0, 5)}</a>` : '-'}</td>
         <td class="dur">${h.state === 'QUEUED' && h.q && h.q !== '-' ? '<span style="color:#555">\u{27F6}</span>' : jobDuration(h)}</td>
         <td class="q">${h.q && h.q !== '-' ? h.q + (h.queueTotal ? '/' + h.queueTotal : '') : (h.state === 'RUNNING' && h.jobStart && h.jobTimeout ? '<span style="color:#555">\u{27F5}</span>' : '-')}</td>
         <td class="ram">${h.ram ? Math.round(Number(h.ram) / 1024) : '-'}</td>
@@ -418,6 +425,10 @@ async function handleDashboardGet(token, env) {
         <td class="gpu" data-host="${name}"><span class="gpu-mode gpu-m-full">${h.marketSlug || h.gpu || '-'}</span><span class="gpu-mode gpu-m-dot">${(h.marketSlug || h.gpu || '').slice(0, 2) || '-'}</span></td>
         <td class="gpuid">${h.gpuId !== undefined && h.gpuId !== '' ? h.gpuId : '-'}</td>
         <td class="ver">${versionCell(h.version)}</td>
+        <td class="cuda">${h.cudaVersion || '-'}</td>
+        <td class="nvidia-drv">${h.nvidiaDriver || '-'}</td>
+        <td class="cpu">${h.cpu || '-'}</td>
+        <td class="sysenv">${h.sysEnv || '-'}</td>
       </tr>`,
     )
     .join('\n');
@@ -458,7 +469,9 @@ async function handleDashboardGet(token, env) {
     td.rewards a{color:#15803d;text-decoration:none;font-weight:600}
     td.rewards a:hover{text-decoration:underline}
     td.q{font-size:12px;color:#ccc}
-    td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur{font-size:11px;color:#888}
+    td.seen,td.ver,td.dl,td.ul,td.ping,td.disk,td.gpu,td.ram,td.gpuid,td.rewards,td.dur,td.cuda,td.nvidia-drv,td.cpu,td.sysenv,td.running-job{font-size:11px;color:#888}
+    td.running-job a{color:#60a5fa;text-decoration:none}
+    td.running-job a:hover{text-decoration:underline}
     td.sol{font-size:11px;color:#7B3FCC}
     td.nos,td.stakedNos{font-size:11px;color:#15803d}
     .actions{margin:16px 0}
@@ -520,6 +533,7 @@ async function handleDashboardGet(token, env) {
         <th data-col="sol" data-type="num"><div>SOL</div></th>
         <th data-col="n" data-type="num"><div>Host</div></th>
         <th data-col="state" data-type="string"><div>State</div></th>
+        <th data-col="runningJob" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Running<br>Job</div></th>
         <th data-col="dur" data-type="string"><div>Duration <span class="dur-toggle" id="durToggle">\u{1F504}</span></div></th>
         <th data-col="q" data-type="string"><div>Queued</div></th>
         <th data-col="ram" data-type="num"><div>RAM</div></th>
@@ -533,6 +547,10 @@ async function handleDashboardGet(token, env) {
         <th data-col="gpu" data-type="string"><div>Market <span class="gpu-toggle" id="gpuToggle">\u{1F504}</span></div></th>
         <th data-col="gpuid" data-type="num"><div>GPU ID</div></th>
         <th data-col="ver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">Node<br>Version<br>${latestNodeVersion || '?'}</div></th>
+        <th data-col="cuda" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">CUDA<br>Version</div></th>
+        <th data-col="nvidiaDriver" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">NVIDIA<br>Driver</div></th>
+        <th data-col="cpu" data-type="string"><div>CPU</div></th>
+        <th data-col="sysEnv" data-type="string"><div style="white-space:normal;text-align:left;line-height:1.3;left:calc(50% - 12px);bottom:-13px">System<br>Env</div></th>
       </tr>
     </thead>
     <tbody>
