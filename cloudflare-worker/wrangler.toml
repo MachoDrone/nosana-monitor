@@ -1,0 +1,15 @@
+name = "nosana-fleet"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+account_id = "506660d336361d19f7e4f0fdb3e402e8"
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+[[kv_namespaces]]
+binding = "FLEET_DATA"
+id = "7788b29f326a4ef8843045de47720dcd"
+
+[[kv_namespaces]]
+binding = "PUSH_SUBS"
+id = "083a1e328e2446aca9a3e1bfae4180f1"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Nosana Monitor Auto-Update Watcher
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=md
+ExecStart=/home/md/claude-nosana-alerts/nosana-monitor/auto-update.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,26 +1,21 @@
 # TODO — Nosana Monitor
 
-## Next Up
-- [ ] **nosana-dashboard**: New project — lightweight web dashboard with green/red grid per host
-  - Two lights per host: PC alive (system cron heartbeat) + nosana-node healthy (monitor heartbeat)
-  - Hosts push status to central API, HTML page renders grid
-  - Must work in any browser (iOS, Android, Windows, Mac, Linux)
-  - Separate project in `nosana-dashboard/` directory
-- [ ] Message retry queue: on 429 rate limit, queue failed messages and retry in order
-  - Applies to both ntfy and Matrix sends
-  - Queue must preserve message order per destination
-  - On 429: read `retry_after_ms` (Matrix) or `Retry-After` (ntfy), sleep, retry once
-  - Drop after second failure (don't block the monitor loop)
-  - If multiple messages queued, combine same-priority messages into one before retry
-  - Never queue/combine critical alerts (OFFLINE, STUCK) — always send immediately
-  - Respect char limits: ntfy 4,096 body / Matrix 65,536 body
-- [ ] Compact single-line messages: keep all alert text on one line where supported
-  - Check ntfy and Matrix/Element rendering behavior
-  - Avoids multi-line clutter in notification shade on mobile
-- [ ] ntfy self-hosting option: document or support self-hosted ntfy for unlimited msgs
-  - ntfy.sh free tier: ~250 msgs/day, burst limits apply
-- [ ] Security: credentials visible in `docker inspect` args — consider env vars or mounted secrets file
+## Next Up — Critical
+- [ ] **Bootstrap script**: Automate full setup for new operators (Cloudflare Worker + KV + VAPID + monitor deploy)
+- [ ] **Python rewrite**: Monitor shell→Python for CPU reduction (32% spikes → <1%) and PDA derivation support
+- [ ] Security: remove key file mount, derive pubkey via docker exec instead
+
+## Next Up — Features
 - [ ] Expand STUCK detection to cover STARTING, HEALTHCHECK, BENCHMARKING (not just RESTARTING)
+- [ ] Nosana backend API: Total Jobs, Availability %, Anti-spoof % (not available via public API yet)
+- [ ] Disk column accuracy: nosana-node reports incorrect disk_gb from benchmark container (overlayfs issue)
+- [ ] Auto-detect all podman containers on host (eliminate --podman-container flag)
+- [ ] Auto-detect hostname from Docker API (eliminate --host-name flag for single-node PCs)
+
+## Known Issues
+- [ ] Cross-isolate pendingData/rpcStateCache — per-isolate memory means some requests get stale data
+- [ ] nn02/nn03 simultaneous reboot (2026-03-26 09:45) — Nosana node update via privileged container reboot syscall
+- [ ] KV write limit hit on 2026-03-26 from Phase 2 initial implementation (fixed — rpcState now in memory only)
 
 ## Completed
 - [x] v0.01.0 — Initial monitor with health checks, ntfy alerts
@@ -32,3 +27,9 @@
 - [x] v0.01.6 — Dual Matrix tokens: sysop (silent) + bot (alert with push notifications)
 - [x] v0.01.7 — Auto-login via `--matrix-user`/`--matrix-bot-user` + auto-invite + auto-join
 - [x] v0.01.8 — Split polling: health 5s / dashboard 30min, OFFLINE threshold 36 failures, node info in heartbeats
+- [x] v0.01.9 — Cloudflare Worker dashboard with Web Push notifications, 3 alert levels, in-page audio, PWA support
+- [x] v0.02.0 — Solana RPC detection, blockchain timestamps, queue position, Market column, kiosk/fast mode, rate limit protection, push notifications aligned with dashboard, auto-deploy, 5-host fleet, CSS indicators, breathing bar, purge, column reorder
+- [x] v0.02.1 — Fix default sort arrow and reset to target PC column; eliminate double-click-to-sort bug
+- [x] v0.06.2 — SOL/NOS/Staked columns, Latest Job, CPU/NVIDIA/CUDA/System columns, animations (bolt1/ring3/queue dots/cardiac pulse/duration sweep), KV throttle architecture, persistent sort, version tracking, transition state, auto-update fix
+- [x] v0.07.x — Multi-GPU support (--podman-container), GPU ID from nvidia-smi, IP column (ext/int auto-detected), edit mode checkboxes, data keyed by nodeAddress, dynamic interval, leader election, focus-based refresh, KV optimization (eliminated 719 writes/day)
+- [x] v0.08.0 — Conservation Phase 1+2: cached RunAccount (getAccountInfo), cached authority, silent rate limit detection, worker-side RPC proxy (getMultipleAccounts batch), rpcStateCache in memory
