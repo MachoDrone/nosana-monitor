@@ -746,6 +746,7 @@ async function handleDashboardGet(token, env) {
       const curr = {};
       const rows = document.querySelectorAll('#fleet tbody tr');
       let pulsed = 0;
+      let delay = 0;
       rows.forEach(tr => {
         const host = tr.dataset.host;
         const seen = tr.dataset.seen;
@@ -753,8 +754,12 @@ async function handleDashboardGet(token, env) {
         if (host && seen && heart) {
           curr[host] = prev[host] && Number(prev[host]) > Number(seen) ? prev[host] : seen;
           if (prev[host] && Number(seen) > Number(prev[host])) {
-            heart.classList.add('pulse');
-            heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
+            const d = delay;
+            setTimeout(() => {
+              heart.classList.add('pulse');
+              heart.addEventListener('animationend', () => heart.classList.remove('pulse'), { once: true });
+            }, d);
+            delay += 300 + Math.floor(Math.random() * 400);
             pulsed++;
           }
         }
