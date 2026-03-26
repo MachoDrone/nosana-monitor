@@ -473,7 +473,7 @@ async function handleDashboardGet(token, env) {
     @keyframes q3{0%{cy:16}12%{cy:16}18%{cy:12}99.9%{cy:12}100%{cy:16}}
     .queue-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .qring-solid{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
-    .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 1.8s linear infinite}
+    .qring-dash{fill:none;stroke:#4ade80;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 2.5s linear infinite}
     .qring-dash{clip-path:polygon(0% 0%,100% 0%,100% 50%,0% 50%)}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,monospace;
          background:#111;color:#e0e0e0;padding:12px;font-size:14px}
