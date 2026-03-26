@@ -26,6 +26,7 @@ const pendingData = new Map(); // token → full data object with accumulated up
 const knownTokens = new Set(); // in-memory cache — skip _tokens KV read after first POST
 let cachedLatestNodeVersion = ''; // in-memory cache — avoid KV read on every GET
 let lastVersionFetch = 0; // throttle Docker Hub fetch to once per hour
+const rpcStateCache = new Map(); // nodeAddress → { state, cachedRunAddr, ts } — ephemeral, not in KV
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -275,12 +276,13 @@ async function handleStatusPost(token, request, env) {
   const rawInterval = Math.ceil(86400 * hostCount / (85800 - 5 * hostCount));
   const recommendedInterval = Math.max(5, Math.min(300, Math.ceil(rawInterval / 5) * 5));
 
-  // Include worker-side RPC state so monitor can skip its own Solana calls
-  const hostData = data[dataKey] || {};
-  const rpcState = hostData.rpcState || '';
-  const cachedRunAddr = hostData.cachedRunAddr || '';
+  // Include worker-side RPC state from memory cache (not KV — avoids write limit)
+  const nodeAddr = nodeAddress || host;
+  const rpcCacheEntry = rpcStateCache.get(nodeAddr);
+  const rpcState = rpcCacheEntry ? rpcCacheEntry.state : '';
+  const cachedRunAddrResp = rpcCacheEntry ? rpcCacheEntry.cachedRunAddr : (data[dataKey] && data[dataKey].cachedRunAddr) || '';
 
-  return jsonResponse({ ok: true, recommendedInterval, rpcState, cachedRunAddr });
+  return jsonResponse({ ok: true, recommendedInterval, rpcState, cachedRunAddr: cachedRunAddrResp });
 }
 
 /* ------------------------------------------------------------------ */
@@ -1888,10 +1890,13 @@ async function handleScheduled(env) {
                 const addr = batch[idx];
                 const dataKey = runAddrMap[addr];
                 if (dataKey && data[dataKey]) {
-                  // Store RPC result: account exists = RUNNING, null = not running
-                  data[dataKey].rpcState = acct ? 'RUNNING' : 'QUEUED';
-                  data[dataKey].rpcChecked = now;
-                  changed = true;
+                  // Store in memory cache only — not KV (avoids write limit)
+                  const nodeAddr = data[dataKey].nodeAddress || dataKey;
+                  rpcStateCache.set(nodeAddr, {
+                    state: acct ? 'RUNNING' : 'QUEUED',
+                    cachedRunAddr: acct ? addr : '',
+                    ts: now,
+                  });
                 }
               });
             }
@@ -1902,9 +1907,11 @@ async function handleScheduled(env) {
 
     // For hosts without cached RunAccount, do a single getProgramAccounts scan
     // but only for hosts that haven't been checked recently
-    const uncheckedHosts = hostEntries.filter(([key, h]) =>
-      !h.cachedRunAddr && Number(h.n) === 1 && (!h.rpcChecked || now - h.rpcChecked > 120000)
-    );
+    const uncheckedHosts = hostEntries.filter(([key, h]) => {
+      const nodeAddr = h.nodeAddress || key;
+      const cached = rpcStateCache.get(nodeAddr);
+      return !h.cachedRunAddr && Number(h.n) === 1 && (!cached || now - cached.ts > 120000);
+    });
     for (const [key, h] of uncheckedHosts) {
       if (!h.nodeAddress) continue;
       try {
@@ -1924,12 +1931,15 @@ async function handleScheduled(env) {
           const rpcData = await rpcResp.json();
           if (!rpcData.error) {
             const results = rpcData.result || [];
-            data[key].rpcState = results.length > 0 ? 'RUNNING' : 'QUEUED';
-            data[key].rpcChecked = now;
-            if (results.length > 0) {
+            rpcStateCache.set(h.nodeAddress, {
+              state: results.length > 0 ? 'RUNNING' : 'QUEUED',
+              cachedRunAddr: results.length > 0 ? results[0].pubkey : '',
+              ts: now,
+            });
+            if (results.length > 0 && !h.cachedRunAddr) {
               data[key].cachedRunAddr = results[0].pubkey;
+              changed = true; // only write KV when new RunAccount discovered
             }
-            changed = true;
           }
         }
       } catch {}
