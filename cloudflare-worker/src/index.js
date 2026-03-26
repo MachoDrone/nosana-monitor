@@ -317,7 +317,7 @@ async function handleDashboardGet(token, env) {
     if (!s) return '-';
     const st = String(s).toUpperCase();
     const sa = stateSince ? tsAttr(Number(stateSince)) : '';
-    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><span class="state-running run-bolt">\u{03DF}</span></span>', sa);
+    if (st === 'RUNNING') return tap('RUNNING', '<span class="run-ring"><svg class="run-svg" viewBox="0 0 24 24"><circle class="ring-solid" cx="12" cy="12" r="10"/><circle class="ring-dash" cx="12" cy="12" r="10"/></svg><svg class="run-bolt-svg" viewBox="0 0 24 24"><path d="M13 2L4.5 14h5L7 22l11-14h-5.5z" fill="#3b82f6"/></svg></span>', sa);
     if (st === 'QUEUED') return tap('QUEUED', '<span class="state-queued" style="font-weight:600">Q</span>', sa);
     if (st === 'RESTARTING') return tap('RESTARTING', dot('#f97316'), sa);
     return tap(st, st.charAt(0));
@@ -455,7 +455,7 @@ async function handleDashboardGet(token, env) {
     @keyframes colorShiftGreen{0%{color:#4ade80}33%{color:#86efac}66%{color:#22c55e}100%{color:#4ade80}}
     .run-ring{display:inline-block;position:relative;width:20px;height:20px;vertical-align:middle}
     .run-ring .state-running{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-    .run-bolt{font-weight:900;font-size:16px;transform:translate(-50%,-50%) !important}
+    .run-bolt-svg{position:absolute;top:50%;left:50%;width:14px;height:14px;transform:translate(-50%,-50%)}
     .run-svg{position:absolute;top:0;left:0;width:100%;height:100%;transform:rotate(-90deg)}
     .ring-solid{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:31.4 31.4;stroke-dashoffset:0}
     .ring-dash{fill:none;stroke:#3b82f6;stroke-width:1.5;stroke-dasharray:4.5 5;stroke-dashoffset:0;animation:dashTravel 0.9s linear infinite}
