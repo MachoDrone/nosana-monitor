@@ -603,52 +603,27 @@ if r.get('result'):
       fi
       STAKED_NOS="0"
       if [ -n "$CACHED_AUTHORITY" ]; then
-        # Derive StakeAccount PDA: seeds=["stake", NOS_MINT, authority]
-        # Then use getAccountInfo (light call) instead of getProgramAccounts
-        _stake_addr=$(python3 -c "
-import hashlib
-ALPHA=b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-def from_b58(s):
-    n=0
-    for c in s.encode():
-        n=n*58+ALPHA.index(c)
-    return n.to_bytes(32,'big')
-def find_pda(seeds, program_id):
-    for bump in range(255,-1,-1):
-        try:
-            h=hashlib.sha256(b''.join(seeds)+bytes([bump])+b'ProgramDerivedAddress'+from_b58(program_id)).digest()
-            # Check if point is on curve (simplified: just return the address)
-            return h, bump
-        except: pass
-    return None, None
-auth=from_b58('${CACHED_AUTHORITY}')
-mint=from_b58('nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7')
-prog='nosScmHY2uR24Vh751PmGj9ww9QRNHewh9H59AfrTJE'
-seeds=[b'stake', mint, auth]
-addr_bytes, bump = find_pda(seeds, prog)
-if addr_bytes:
-    n=int.from_bytes(addr_bytes,'big');o=[]
-    while n>0:n,rem=divmod(n,58);o.append(ALPHA[rem:rem+1])
-    for x in addr_bytes:
-        if x==0:o.append(b'1')
-        else:break
-    print(b''.join(reversed(o)).decode())
-" 2>/dev/null || echo "")
-        if [ -n "$_stake_addr" ]; then
-          STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
-            -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"${_stake_addr}\",{\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
+        # Use cached authority with getProgramAccounts on staking program
+        # (PDA derivation requires ed25519 on-curve check not available in pure Python)
+        # Authority caching still saves 1 heavy call (no need to re-scan Jobs program)
+        STAKED_NOS=$(rpc_curl -s -X POST "$SOLANA_RPC" \
+          -H "Content-Type: application/json" \
+          -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getProgramAccounts\",\"params\":[\"nosScmHY2uR24Vh751ctsLGdXA2kF7SyMjPjLEfPqRb\",{\"filters\":[{\"memcmp\":{\"offset\":8,\"bytes\":\"${CACHED_AUTHORITY}\"}}],\"encoding\":\"base64\"}]}" 2>/dev/null | python3 -c "
 import sys,json,base64,struct
 r=json.load(sys.stdin)
-v=r.get('result',{}).get('value')
-if v:
-    data=base64.b64decode(v['data'][0])
-    val=struct.unpack_from('<Q',data,8)[0]
-    print(f'{val/1e6:.4f}')
+accts=r.get('result',[])
+if accts:
+    data=base64.b64decode(accts[0]['account']['data'][0])
+    for off in range(40, min(len(data)-7, 200), 8):
+        val=struct.unpack_from('<Q',data,off)[0]
+        if 0 < val < 1e15:
+            print(f'{val/1e6:.4f}')
+            break
+    else:
+        print('0')
 else:
     print('0')
 " 2>/dev/null || echo "0")
-        fi
       fi
 
       # Min stake required from market account (node_xnos_minimum at offset 130, u128)
