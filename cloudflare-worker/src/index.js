@@ -445,7 +445,9 @@ async function handleDashboardGet(token, env) {
       const dur = (d ? d + 'd ' : '') + (hr ? hr + 'h ' : '') + mn + 'm';
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
-      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="font-size:10px;display:inline-block">\u{1F49A}</span>');
+      const hbAgeSec = Math.round((now - h.seen) / 1000);
+      const hbEmoji = hbAgeSec > 300 ? '\u{1F534}' : hbAgeSec > 120 ? '\u{1F7E0}' : '\u{1F49A}';
+      compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="font-size:10px;display:inline-block">' + hbEmoji + '</span>');
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
   }
