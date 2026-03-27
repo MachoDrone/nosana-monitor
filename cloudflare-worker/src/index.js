@@ -324,12 +324,16 @@ async function handleDashboardGet(token, env) {
 
   function indicator(val, seen, nodeUptime, containerStoppedAt, downApprox, downLabel) {
     const stale = now - seen > STALE_THRESHOLD_MS;
+    const ageSec = Math.round((now - seen) / 1000);
     const lbl = downLabel || 'nosana-node';
     if (stale) return tap('Host unreachable — last seen', '<span style="font-size:18px">\u{1F6A8}</span>', tsAttr(seen));
     if (Number(val) === 0) {
       if (containerStoppedAt) return tap(downApprox ? lbl + ' STOPPED at unknown time prior to' : lbl + ' STOPPED', redX, tsAttr(0, containerStoppedAt));
       return tap(lbl + ' STOPPED', redX);
     }
+    // Intermediate warning states before full stale threshold
+    if (ageSec > 300) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#ef4444'), tsAttr(seen)); // red dot > 5 min
+    if (ageSec > 120) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#f59e0b'), tsAttr(seen)); // orange dot > 2 min
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
 
