@@ -332,8 +332,8 @@ async function handleDashboardGet(token, env) {
       return tap(lbl + ' STOPPED', redX);
     }
     // Intermediate warning states before full stale threshold
-    if (ageSec > 300) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#ef4444'), tsAttr(seen)); // red dot > 5 min
-    if (ageSec > 120) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#f59e0b'), tsAttr(seen)); // orange dot > 2 min
+    if (ageSec > 300) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#f97316'), tsAttr(seen)); // orange dot > 5 min
+    if (ageSec > 120) return tap('No heartbeat for ' + Math.floor(ageSec / 60) + 'm', dot('#eab308'), tsAttr(seen)); // yellow dot > 2 min
     return tap('UP', dot('#22c55e'), nodeUptime ? tsAttr(0, nodeUptime) : '');
   }
 
@@ -446,7 +446,7 @@ async function handleDashboardGet(token, env) {
       compact = tap('PC or Host DOWN ' + dur.trim(), redX);
     } else {
       const hbAgeSec = Math.round((now - h.seen) / 1000);
-      const hbEmoji = hbAgeSec > 300 ? '\u{1F534}' : hbAgeSec > 120 ? '\u{1F7E0}' : '\u{1F49A}';
+      const hbEmoji = hbAgeSec > 300 ? '\u{1F9E1}' : hbAgeSec > 120 ? '\u{1F49B}' : '\u{1F49A}';
       compact = tap('Nosana Fleet Mon Heartbeat: ' + seenAgo(h.seen), '<span class="hb-heart" data-seen="' + h.seen + '" style="font-size:10px;display:inline-block">' + hbEmoji + '</span>');
     }
     return '<span class="hb-m-full">' + full + '</span><span class="hb-m-compact">' + compact + '</span>';
