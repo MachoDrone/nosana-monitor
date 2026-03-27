@@ -517,7 +517,9 @@ FLEET
 
   Optional flags:
     --host-name "my-gpu-01"          Custom hostname
-    --poll-interval 5                Health check interval (seconds)
+    --poll-interval 30               Health check interval in seconds (default: 5)
+                                     Lower values burn through API rate limits faster.
+                                     For fleets over 10 hosts, use 30 or higher.
 
   View logs:
     docker logs -f nosana-monitor
