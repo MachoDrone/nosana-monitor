@@ -513,8 +513,7 @@ FLEET
 
   Run this on each Nosana host:
 
-  bash <(wget -qO- "https://raw.githubusercontent.com/MachoDrone/nosana-monitor/main/nosana-monitor/nosana-monitor.sh") \\
-    --dashboard-url "${DASHBOARD_URL}"
+  bash <(wget -qO- "https://raw.githubusercontent.com/MachoDrone/nosana-monitor/main/nosana-monitor/nosana-monitor.sh") --dashboard-url "${DASHBOARD_URL}"
 
   Optional flags:
     --host-name "my-gpu-01"          Custom hostname
@@ -555,8 +554,7 @@ echo -e "    ${CYAN}${DASHBOARD_URL}${NC}"
 echo ""
 echo -e "  ${BOLD}Start monitoring on each Nosana host:${NC}"
 echo ""
-echo -e "    ${GREEN}bash <(wget -qO- \"https://raw.githubusercontent.com/MachoDrone/nosana-monitor/main/nosana-monitor/nosana-monitor.sh\") \\\\${NC}"
-echo -e "    ${GREEN}  --dashboard-url \"${DASHBOARD_URL}\"${NC}"
+echo -e "    ${GREEN}bash <(wget -qO- \"https://raw.githubusercontent.com/MachoDrone/nosana-monitor/main/nosana-monitor/nosana-monitor.sh\") --dashboard-url \"${DASHBOARD_URL}\"${NC}"
 echo ""
 echo -e "  ${BOLD}Credentials saved to:${NC}"
 echo -e "    ${CYAN}${HOST_HOME}/nosana-fleet-bootstrap.log${NC}"

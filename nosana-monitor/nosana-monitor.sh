@@ -37,7 +37,7 @@ fi
 
 # Build image
 echo "Building container..."
-docker build -q -t "$IMAGE_NAME" "$BUILD_DIR"
+docker build -q -t "$IMAGE_NAME" "$BUILD_DIR/nosana-monitor"
 
 # Run container
 echo "Starting monitor..."
