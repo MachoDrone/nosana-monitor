@@ -45,6 +45,8 @@ docker run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   -v "${NOSANA_DIR}:/root/.nosana:ro" \
+  -v nosana-monitor-state:/state \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   "$IMAGE_NAME" "$@"
 
 echo ""
