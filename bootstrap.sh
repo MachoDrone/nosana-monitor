@@ -278,6 +278,10 @@ while true; do
 done
 
 print_ok "Worker name: ${BOLD}${WORKER_NAME}${NC}"
+echo ""
+echo -e "  Your dashboard URL will look like:"
+echo -e "    ${CYAN}https://${WORKER_NAME}.<your-subdomain>.workers.dev/d/<your-token>${NC}"
+echo -e "  The exact URL will be shown after deployment."
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  STEP 4/6 — Storage and encryption (automatic)
@@ -291,6 +295,18 @@ echo ""
 
 # --- Create KV namespaces ---
 
+# Helper to extract namespace ID from wrangler output (handles both JSON and TOML formats)
+parse_kv_id() {
+    local output="$1"
+    # Try JSON format first: "id": "abc123..."
+    local id=$(echo "$output" | grep -oE '"id":\s*"[a-f0-9]+"' | grep -oE '[a-f0-9]{20,}' | head -1)
+    # Fall back to TOML format: id = "abc123..."
+    if [[ -z "$id" ]]; then
+        id=$(echo "$output" | grep -oE 'id = "[a-f0-9]+"' | grep -oE '[a-f0-9]{20,}' | head -1)
+    fi
+    echo "$id"
+}
+
 print_info "Creating FLEET_DATA namespace..."
 FLEET_KV_OUTPUT=$(wrangler kv namespace create FLEET_DATA 2>&1) || true
 
@@ -298,19 +314,14 @@ if echo "$FLEET_KV_OUTPUT" | grep -qi "already exists\|already being used"; then
     print_warn "FLEET_DATA already exists — reusing it."
     KV_LIST_OUTPUT=$(wrangler kv namespace list 2>&1 || true)
     FLEET_KV_ID=$(echo "$KV_LIST_OUTPUT" | grep -B2 "FLEET_DATA" | grep -oE '[a-f0-9]{32}' | head -1 || true)
-    if [[ -z "$FLEET_KV_ID" ]]; then
-        echo -e "  ${RED}Could not find FLEET_DATA namespace ID.${NC}"
-        prompt_with_default "Enter FLEET_DATA namespace ID manually" ""
-        FLEET_KV_ID="$REPLY"
-    fi
 else
-    FLEET_KV_ID=$(echo "$FLEET_KV_OUTPUT" | grep -oE 'id = "[a-f0-9]+"' | grep -oE '[a-f0-9]{20,}' | head -1 || true)
-    if [[ -z "$FLEET_KV_ID" ]]; then
-        echo -e "  ${YELLOW}Could not parse FLEET_DATA ID from output:${NC}"
-        echo "$FLEET_KV_OUTPUT"
-        prompt_with_default "Enter FLEET_DATA namespace ID manually" ""
-        FLEET_KV_ID="$REPLY"
-    fi
+    FLEET_KV_ID=$(parse_kv_id "$FLEET_KV_OUTPUT")
+fi
+
+if [[ -z "$FLEET_KV_ID" ]]; then
+    echo -e "  ${RED}Failed to create FLEET_DATA namespace. Output:${NC}"
+    echo "$FLEET_KV_OUTPUT"
+    exit 1
 fi
 print_ok "FLEET_DATA: ${FLEET_KV_ID}"
 
@@ -321,19 +332,14 @@ if echo "$PUSH_KV_OUTPUT" | grep -qi "already exists\|already being used"; then
     print_warn "PUSH_SUBS already exists — reusing it."
     KV_LIST_OUTPUT="${KV_LIST_OUTPUT:-$(wrangler kv namespace list 2>&1 || true)}"
     PUSH_KV_ID=$(echo "$KV_LIST_OUTPUT" | grep -B2 "PUSH_SUBS" | grep -oE '[a-f0-9]{32}' | head -1 || true)
-    if [[ -z "$PUSH_KV_ID" ]]; then
-        echo -e "  ${RED}Could not find PUSH_SUBS namespace ID.${NC}"
-        prompt_with_default "Enter PUSH_SUBS namespace ID manually" ""
-        PUSH_KV_ID="$REPLY"
-    fi
 else
-    PUSH_KV_ID=$(echo "$PUSH_KV_OUTPUT" | grep -oE 'id = "[a-f0-9]+"' | grep -oE '[a-f0-9]{20,}' | head -1 || true)
-    if [[ -z "$PUSH_KV_ID" ]]; then
-        echo -e "  ${YELLOW}Could not parse PUSH_SUBS ID from output:${NC}"
-        echo "$PUSH_KV_OUTPUT"
-        prompt_with_default "Enter PUSH_SUBS namespace ID manually" ""
-        PUSH_KV_ID="$REPLY"
-    fi
+    PUSH_KV_ID=$(parse_kv_id "$PUSH_KV_OUTPUT")
+fi
+
+if [[ -z "$PUSH_KV_ID" ]]; then
+    echo -e "  ${RED}Failed to create PUSH_SUBS namespace. Output:${NC}"
+    echo "$PUSH_KV_OUTPUT"
+    exit 1
 fi
 print_ok "PUSH_SUBS: ${PUSH_KV_ID}"
 
