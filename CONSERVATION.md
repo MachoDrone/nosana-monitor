@@ -172,6 +172,8 @@ When rate-limited, the public RPC sometimes returns **empty results instead of 4
 
 **Caveat**: `rpcStateCache` is per-isolate (same as `pendingData`). If the POST and cron hit different isolates, the monitor won't get worker-provided state and falls back to its own RPC. This is acceptable — the fallback is Phase 1 optimized (cached getAccountInfo).
 
+**CRITICAL — KV write multiplication (confirmed 2026-03-27)**: The per-isolate `pendingData` flush is the same mechanism that causes KV write exhaustion. Each isolate independently flushes to KV every 2 minutes. With N isolates active, actual writes = N × 720/day. On the md5@vanasdale.com account (free tier, 1,000 writes/day), 8 monitors exhausted the limit by late morning. This is the THIRD time KV writes have been a blocker (account 1 Phase 2 initial impl, account 2 same day fix, account 3 multi-isolate). The free tier's 1,000 write limit is fundamentally incompatible with per-isolate flush unless writes are consolidated via Durable Objects or the $5/mo paid plan (1M writes).
+
 ### Phase 3 (FUTURE)
 
 | # | Optimization | Effort | Impact | Dependencies |

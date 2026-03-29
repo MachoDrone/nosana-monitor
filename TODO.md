@@ -1,6 +1,7 @@
 # TODO — Nosana Monitor
 
 ## Next Up — Critical
+- [ ] **KV write limit — BLOCKER**: Free tier allows 1,000 KV writes/day. 8 monitors on new account (md5@vanasdale.com) exhausted limit by late morning 2026-03-27. Root cause: per-isolate pendingData flush — each Cloudflare isolate independently writes to KV every 2 minutes, multiplying actual writes far beyond the intended 720/day. Must solve before any fleet can run on free tier. Options: (a) consolidate writes via Durable Objects, (b) upgrade to $5/mo paid plan (1M writes), (c) reduce write frequency drastically
 - [ ] **Bootstrap script**: Automate full setup for new operators (Cloudflare Worker + KV + VAPID + monitor deploy)
 - [ ] **Python rewrite**: Monitor shell→Python for CPU reduction (32% spikes → <1%) and PDA derivation support
 - [ ] Security: remove key file mount, derive pubkey via docker exec instead
@@ -13,9 +14,9 @@
 - [ ] Auto-detect hostname from Docker API (eliminate --host-name flag for single-node PCs)
 
 ## Known Issues
-- [ ] Cross-isolate pendingData/rpcStateCache — per-isolate memory means some requests get stale data
+- [ ] **Cross-isolate KV write multiplication** — per-isolate pendingData flush causes N isolates × 720 writes/day instead of 720. Hit 1,000 limit on BOTH accounts (account 2 on 2026-03-26, account 3 on 2026-03-27). This is the same root cause as stale data — isolates don't share memory
 - [ ] nn02/nn03 simultaneous reboot (2026-03-26 09:45) — Nosana node update via privileged container reboot syscall
-- [ ] KV write limit hit on 2026-03-26 from Phase 2 initial implementation (fixed — rpcState now in memory only)
+- [ ] Stale job data lingers on dashboard — worker accumulates KV fields but never clears runningJob/jobStart when monitor reports non-RUNNING state
 
 ## Completed
 - [x] v0.01.0 — Initial monitor with health checks, ntfy alerts
